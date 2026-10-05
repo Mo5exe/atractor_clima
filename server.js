@@ -20,11 +20,20 @@ const { SCHEMAS, NAMES, DEFAULT_SETTINGS } = require("./public/js/schemas.js");
 const { getWords } = require("./word-sources.js");
 const { getRealWeather, manualWeather, searchCity, categories } = require("./weather.js");
 const { getClimateWords } = require("./climate-words.js");
+const auth = require("./auth.js");
+
+// Carpeta de datos (presets, imágenes, animaciones). En Render se puede apuntar a
+// un disco permanente con la variable DATA_DIR; si no, queda en ./data.
+const DATA_ROOT = process.env.DATA_DIR || path.join(__dirname, "data");
+const ON_RENDER = !!process.env.RENDER;
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+app.set("trust proxy", 1); // detrás del proxy de Render (https)
+app.get("/healthz", (req, res) => res.type("text").send("ok")); // chequeo de Render
+auth.mount(app); // contraseña del panel (sólo si está PANEL_PASSWORD)
 app.use(express.static(path.join(__dirname, "public")));
 // MediaPipe se sirve desde node_modules para no depender de un CDN.
 app.use("/mediapipe", express.static(path.join(__dirname, "node_modules", "@mediapipe", "tasks-vision")));
@@ -32,7 +41,7 @@ app.use("/mediapipe", express.static(path.join(__dirname, "node_modules", "@medi
 // ---------------------------------------------------------------------------
 // Imágenes subidas (para la capa "Imágenes"). Se guardan en data/images.
 // ---------------------------------------------------------------------------
-const IMAGES_DIR = path.join(__dirname, "data", "images");
+const IMAGES_DIR = path.join(DATA_ROOT, "images");
 fs.mkdirSync(IMAGES_DIR, { recursive: true });
 app.use("/uploads", express.static(IMAGES_DIR, { maxAge: "1h" }));
 
@@ -60,7 +69,7 @@ function listImages() {
   }
 }
 
-app.post("/api/images", express.raw({ type: () => true, limit: "20mb" }), (req, res) => {
+app.post("/api/images", auth.requireAuth, express.raw({ type: () => true, limit: "20mb" }), (req, res) => {
   const buf = req.body;
   const type = Buffer.isBuffer(buf) ? imageType(buf) : null;
   if (!type) return res.status(400).json({ ok: false, error: "No es una imagen PNG, JPG, GIF o WebP." });
@@ -79,7 +88,7 @@ app.post("/api/images", express.raw({ type: () => true, limit: "20mb" }), (req, 
 // Se guardan en data/animations. Los videos pueden ser grandes: se reciben
 // en partes directo al disco.
 // ---------------------------------------------------------------------------
-const ANIMS_DIR = path.join(__dirname, "data", "animations");
+const ANIMS_DIR = path.join(DATA_ROOT, "animations");
 fs.mkdirSync(ANIMS_DIR, { recursive: true });
 app.use("/anims", express.static(ANIMS_DIR, { maxAge: "1h" }));
 const ANIM_EXT = /\.(gif|png|webp|mp4|mov|webm)$/i;
@@ -115,7 +124,7 @@ function listAnimations() {
   }
 }
 
-app.post("/api/animations", (req, res) => {
+app.post("/api/animations", auth.requireAuth, (req, res) => {
   const tmp = path.join(ANIMS_DIR, randomUUID() + ".part");
   const out = fs.createWriteStream(tmp);
   let bytes = 0;
@@ -207,7 +216,7 @@ function broadcastState() {
 // ---------------------------------------------------------------------------
 // Presets
 // ---------------------------------------------------------------------------
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = DATA_ROOT;
 const PRESETS_FILE = path.join(DATA_DIR, "presets.json");
 let presets = [];
 
@@ -243,6 +252,35 @@ function presetSummaries() {
 }
 
 loadPresets();
+
+// Descargar / cargar presets (para guardarlos en tu compu, por ejemplo cuando
+// el servidor está en Render y los archivos no son permanentes).
+app.get("/api/presets", auth.requireAuth, (req, res) => {
+  res.setHeader("Content-Disposition", 'attachment; filename="atractor-presets.json"');
+  res.json(presets);
+});
+app.post("/api/presets", auth.requireAuth, express.json({ limit: "5mb" }), (req, res) => {
+  const incoming = Array.isArray(req.body) ? req.body : (req.body && Array.isArray(req.body.presets) ? req.body.presets : null);
+  if (!incoming) return res.status(400).json({ ok: false, error: "El archivo no tiene presets." });
+  let added = 0;
+  const ids = new Set(presets.map((p) => p.id));
+  incoming.forEach((p) => {
+    if (!p || !Array.isArray(p.layers) || !p.name) return;
+    const copy = {
+      id: ids.has(p.id) ? randomUUID() : (p.id || randomUUID()),
+      name: String(p.name).slice(0, 60),
+      createdAt: p.createdAt || new Date().toISOString(),
+      layers: p.layers,
+      settings: p.settings || {}
+    };
+    ids.add(copy.id);
+    presets.push(copy);
+    added++;
+  });
+  savePresets();
+  io.emit("presets", presetSummaries());
+  res.json({ ok: true, added });
+});
 
 // ---------------------------------------------------------------------------
 // Palabras (para la capa "Palabras")
@@ -326,7 +364,17 @@ setInterval(refreshTrends, 3 * 60 * 1000);
 // ---------------------------------------------------------------------------
 // Sockets
 // ---------------------------------------------------------------------------
+// ¿Los archivos sobreviven a un reinicio? En Render gratis, no (salvo con disco).
+const PERSISTENT = !ON_RENDER || !!process.env.DATA_DIR;
+
 io.on("connection", (socket) => {
+  auth.guardSocket(socket);
+  socket.emit("server-info", {
+    onRender: ON_RENDER,
+    persistent: PERSISTENT,
+    protected: auth.PROTECTED,
+    admin: !!socket.data.admin
+  });
   socket.emit("state", state);
   socket.emit("presets", presetSummaries());
   socket.emit("trends", trendsInfo);

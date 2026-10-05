@@ -1,0 +1,26 @@
+# Configuración para publicar Atractor Clima en Render (render.com).
+# En Render: New → Blueprint → elegí este repositorio. Te va a pedir PANEL_PASSWORD.
+services:
+  - type: web
+    name: atractor-clima
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    autoDeploy: true # cada cambio en GitHub se publica solo
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: PANEL_PASSWORD # contraseña para entrar al panel (la salida queda pública)
+        sync: false
+    # Para que las imágenes, animaciones y presets NO se borren al reiniciar hace
+    # falta un plan pago con disco. Cambiá "plan: free" por "plan: starter" y
+    # sacá los # de estas líneas:
+    # disk:
+    #   name: datos
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    # y agregá en envVars:
+    #   - key: DATA_DIR
+    #     value: /var/data

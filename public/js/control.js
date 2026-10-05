@@ -46,6 +46,35 @@
 
   socket.on("error-message", (msg) => alert(msg));
 
+  // --- Info del servidor (Render, contraseña, archivos permanentes) ---
+  socket.on("server-info", (info) => {
+    $("logoutLink").hidden = !info.protected;
+    const banner = $("serverBanner");
+    if (info.onRender && !info.persistent) {
+      banner.hidden = false;
+      banner.innerHTML = "☁️ <b>Estás en Render (plan gratis).</b> Las imágenes, animaciones y presets que subas se borran cuando el servidor se reinicia o se actualiza. " +
+        "Usá <b>⬇ Descargar presets</b> (abajo a la izquierda) para guardarlos en tu compu, y guardá tus archivos originales.";
+    } else banner.hidden = true;
+  });
+
+  // --- Descargar / cargar presets ---
+  $("exportPresetsBtn").addEventListener("click", () => { window.location.href = "/api/presets"; });
+  $("importPresetsBtn").addEventListener("click", () => $("importPresetsFile").click());
+  $("importPresetsFile").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const msg = $("presetIoMsg");
+    try {
+      const text = await file.text();
+      const res = await fetch("/api/presets", { method: "POST", headers: { "Content-Type": "application/json" }, body: text });
+      const data = await res.json();
+      msg.textContent = data.ok ? (data.added + (data.added === 1 ? " preset cargado." : " presets cargados.")) : (data.error || "No se pudo cargar.");
+    } catch (err) {
+      msg.textContent = "Ese archivo no es un archivo de presets.";
+    }
+  });
+
   // ------------------------------------------------------------------ ajustes
   COUNTRIES.forEach((c) => {
     const opt = document.createElement("option");

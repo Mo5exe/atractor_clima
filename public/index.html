@@ -13,10 +13,13 @@
       <p>Panel de control — los cambios se ven en vivo en la ventana de salida.</p>
     </div>
     <div class="row">
+      <a id="logoutLink" class="small-link" href="/logout" hidden>Salir</a>
       <button id="openOutputCamBtn" class="primary" title="La salida usa la cámara directamente (ideal con una sola pantalla)">Abrir salida con cámara ↗</button>
       <button id="openOutputBtn" class="link" title="Salida sin cámara propia (la cámara la maneja este panel)">Abrir salida sin cámara ↗</button>
     </div>
   </header>
+
+  <div id="serverBanner" class="server-banner" hidden></div>
 
   <div class="layout">
     <!-- ===== PRESETS ===== -->
@@ -28,6 +31,12 @@
       </form>
       <p class="muted small">Guarda todas las capas y ajustes actuales. Clic en un preset para cargarlo.</p>
       <div id="presetsList" class="presets-list"></div>
+      <div class="preset-io">
+        <button id="exportPresetsBtn" type="button" title="Guardar todos los presets en un archivo en tu compu">⬇ Descargar presets</button>
+        <button id="importPresetsBtn" type="button" title="Cargar presets desde un archivo">⬆ Cargar presets</button>
+        <input id="importPresetsFile" type="file" accept="application/json,.json" hidden />
+      </div>
+      <p id="presetIoMsg" class="muted small"></p>
     </aside>
 
     <main>

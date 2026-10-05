@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atractor — Entrar</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login { width: min(360px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .login h1 { margin: 0; font-size: 20px; }
+    .login input { background: var(--panel-alt); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 15px; }
+    .login input:focus { outline: none; border-color: var(--accent); }
+    .login .msg { min-height: 1.2em; font-size: 13px; color: var(--accent-2); margin: 0; }
+    .login a { color: var(--accent); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <form class="login" method="post" action="/login">
+    <h1>🌦️ Atractor</h1>
+    <p class="muted small">Panel de control. Escribí la contraseña.</p>
+    <input type="password" name="password" placeholder="Contraseña" autofocus autocomplete="current-password" required />
+    <button type="submit" class="primary">Entrar</button>
+    <p class="msg" id="msg"></p>
+    <a href="/output.html">Ir a la salida visual (no necesita contraseña) ↗</a>
+  </form>
+  <script>
+    const q = new URLSearchParams(location.search);
+    if (q.get("error")) document.getElementById("msg").textContent = "Contraseña incorrecta.";
+    if (q.get("espera")) document.getElementById("msg").textContent = "Demasiados intentos. Esperá 5 minutos.";
+  </script>
+</body>
+</html>

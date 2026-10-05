@@ -609,3 +609,12 @@ button:disabled {
 .image-item video { width: 100%; height: 100%; object-fit: contain; }
 .media-badge { position: absolute; left: 3px; bottom: 3px; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(15,17,21,0.85); color: var(--accent); pointer-events: none; }
 #newsRow[hidden], #countryRow[hidden] { display: none; }
+
+/* ===== Render ===== */
+.server-banner { margin: 12px 28px 0; padding: 10px 14px; border-radius: 8px; font-size: 13px; line-height: 1.5;
+  background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.4); color: #fde68a; }
+.server-banner[hidden] { display: none; }
+.preset-io { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.preset-io button { font-size: 12px; padding: 7px 10px; text-align: left; }
+.small-link { color: var(--muted); font-size: 13px; margin-right: 6px; }
+.small-link[hidden] { display: none; }

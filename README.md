@@ -18,6 +18,30 @@ Basado en [atractor](https://github.com/Mo5exe/atractor), que a su vez parte de
 
 Para bajar una versión nueva: **`actualizar.bat`** (no borra presets ni imágenes).
 
+## Publicarlo en internet (Render)
+
+1. Entrá a [render.com](https://render.com) y creá una cuenta con **"Sign in with GitHub"**.
+2. Arriba a la derecha: **New → Blueprint**. Elegí el repositorio **atractor_clima**
+   (si no aparece, tocá "Configure account" y dale permiso a Render para verlo).
+3. Render lee `render.yaml` y te pide **PANEL_PASSWORD**: escribí la contraseña que vas a
+   usar para entrar al panel. Apretá **Apply / Deploy**.
+4. En unos minutos te da una dirección del tipo `https://atractor-clima.onrender.com`.
+   - Panel: `https://atractor-clima.onrender.com` (pide la contraseña).
+   - Salida para el proyector: `https://atractor-clima.onrender.com/output.html`
+     (pública, pero no deja cambiar nada). Con cámara: `/output.html?camara=1`.
+5. Cada vez que se sube un cambio a GitHub, Render lo publica solo.
+
+**Plan gratis:** si nadie entra en 15 minutos, el servidor se duerme y la primera visita
+tarda alrededor de un minuto en despertarlo. Además, **las imágenes, animaciones y presets
+que subas se borran** cuando se reinicia o se actualiza. Usá **⬇ Descargar presets** para
+guardarlos en tu compu y **⬆ Cargar presets** para volver a cargarlos, y guardá tus
+archivos originales. Para que todo quede guardado hace falta un plan pago con disco (ver
+los comentarios en `render.yaml` y la variable `DATA_DIR`).
+
+En tu compu (con `run.bat`) no hay contraseña y todo se guarda como siempre.
+
+La versión anterior quedó en la rama `version-3-antes-de-render`.
+
 ## El clima
 
 - **Clima real** de Open-Meteo (gratis, sin registro), se actualiza cada 10 minutos.
@@ -130,6 +154,8 @@ En la salida, mantené el clic y mové el mouse: funciona como la mano.
 
 ```
 server.js            servidor: estado, presets, clima, palabras, imágenes
+auth.js              contraseña del panel (variable PANEL_PASSWORD)
+render.yaml          configuración para publicar en Render
 weather.js           clima real (Open-Meteo), modo manual, buscador de ciudad
 climate-words.js     palabras del clima (estado, frases, tus palabras, Mastodon)
 word-sources.js      otras fuentes de palabras
