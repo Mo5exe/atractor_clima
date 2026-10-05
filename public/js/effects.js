@@ -322,6 +322,30 @@ class FlowFieldEffect {
 // ---------------------------------------------------------------------------
 // 4) FUEGO — se inclina con el viento, la lluvia lo achica, el frío lo vuelve azul
 // ---------------------------------------------------------------------------
+// Paleta de fuego a partir de 3 colores (centro → medio → puntas → casi negro).
+function fireGradient(p) {
+  const core = hexToRgb(p.colorCore || "#ffffc8");
+  const mid = hexToRgb(p.colorMid || "#ffaa28");
+  const tip = hexToRgb(p.colorTip || "#e63c14");
+  const dark = { r: Math.round(tip.r * 0.17), g: Math.round(tip.g * 0.17), b: Math.round(tip.b * 0.17) };
+  const stops = [{ t: 1, c: core }, { t: 0.6, c: mid }, { t: 0.3, c: tip }, { t: 0, c: dark }];
+  const lut = [];
+  for (let i = 0; i <= 32; i++) {
+    const r = i / 32;
+    let c = core;
+    for (let j = 0; j < stops.length - 1; j++) {
+      const a = stops[j], b = stops[j + 1];
+      if (r <= a.t && r >= b.t) {
+        const k = (r - b.t) / (a.t - b.t || 1);
+        c = { r: Math.round(b.c.r + (a.c.r - b.c.r) * k), g: Math.round(b.c.g + (a.c.g - b.c.g) * k), b: Math.round(b.c.b + (a.c.b - b.c.b) * k) };
+        break;
+      }
+    }
+    lut.push("rgb(" + c.r + "," + c.g + "," + c.b + ")");
+  }
+  return lut;
+}
+
 class FireEffect {
   constructor() { this.particles = []; }
   spawn(w, h, p, rain) {
@@ -364,6 +388,9 @@ class FireEffect {
     }
   }
   draw(ctx, w, h, p, env) {
+    const key = (p.colorCore || "") + (p.colorMid || "") + (p.colorTip || "");
+    if (key !== this.lutKey) { this.lutKey = key; this.lut = fireGradient(p); }
+    const lut = this.lut;
     ctx.globalCompositeOperation = "lighter";
     // Con frío las llamas viran al azul (girando el tono).
     const tn = weatherOf(env).tempNorm;
@@ -372,7 +399,7 @@ class FireEffect {
     for (const particle of this.particles) {
       const lifeRatio = 1 - particle.age / particle.life;
       if (lifeRatio <= 0) continue;
-      ctx.fillStyle = fireColor(lifeRatio);
+      ctx.fillStyle = lut[Math.max(0, Math.min(32, Math.round(lifeRatio * 32)))];
       ctx.globalAlpha = Math.max(0, Math.min(1, lifeRatio * 1.3));
       ctx.beginPath();
       ctx.arc(particle.x, particle.y, Math.max(0.5, p.size * lifeRatio), 0, Math.PI * 2);
@@ -952,6 +979,36 @@ function getImage(url) {
   return img.complete && img.naturalWidth > 0 ? img : null;
 }
 
+// Imagen teñida: se pinta el color encima respetando la transparencia del PNG.
+const tintCache = new Map(); // "url|color|amount" -> canvas
+function tintedImage(img, url, color, amount) {
+  if (amount <= 0.001) return img;
+  const key = url + "|" + color + "|" + amount.toFixed(2);
+  let c = tintCache.get(key);
+  if (c) return c;
+  if (tintCache.size > 150) tintCache.clear();
+  const maxSide = 900; // tope para que no pese
+  const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(img.naturalWidth * k));
+  c.height = Math.max(1, Math.round(img.naturalHeight * k));
+  c.naturalWidth = c.width;   // para que drawImage() la trate igual que una imagen
+  c.naturalHeight = c.height;
+  const x = c.getContext("2d");
+  x.drawImage(img, 0, 0, c.width, c.height);
+  x.globalCompositeOperation = "source-atop";
+  x.globalAlpha = Math.min(1, amount);
+  x.fillStyle = color;
+  x.fillRect(0, 0, c.width, c.height);
+  tintCache.set(key, c);
+  return c;
+}
+
+const RAINBOW_STEPS = 12;
+function rainbowColor(step) {
+  return "hsl(" + Math.round((step % RAINBOW_STEPS) * (360 / RAINBOW_STEPS)) + ",95%,60%)";
+}
+
 class ImagesEffect {
   constructor() { this.items = []; this.waitTimer = 0; this.lastIndex = -1; this.floating = new Map(); }
   pick(urls) {
@@ -974,6 +1031,7 @@ class ImagesEffect {
     const len = Math.hypot(dx, dy) || 1;
     this.items.push({
       url, x: hand.x, y: hand.y, age: 0, hold: p.hold, flyTime: p.flyTime,
+      hueStep: Math.floor(Math.random() * RAINBOW_STEPS),
       dirX: dx / len, dirY: dy / len, vel: 0, flying: false,
       scale: this.scaleFor(p), rot: (Math.random() - 0.5) * 0.25, spin: (Math.random() - 0.5) * 2.4
     });
@@ -990,7 +1048,7 @@ class ImagesEffect {
         if (!this.floating.has(url)) {
           const ang = (i / Math.max(1, urls.length)) * Math.PI * 2;
           const r = urls.length > 1 ? Math.min(w, h) * 0.22 : 0;
-          this.floating.set(url, { url, hx: w / 2 + Math.cos(ang) * r, hy: h / 2 + Math.sin(ang) * r, x: w / 2, y: h / 2, seed: Math.random() * 10, scale: this.scaleFor(p), near: 0 });
+          this.floating.set(url, { url, hueStep: i * 5, hx: w / 2 + Math.cos(ang) * r, hy: h / 2 + Math.sin(ang) * r, x: w / 2, y: h / 2, seed: Math.random() * 10, scale: this.scaleFor(p), near: 0 });
         }
       });
       const wind = windOf(env);
@@ -1050,19 +1108,32 @@ class ImagesEffect {
     ctx.filter = "none";
     ctx.restore();
   }
-  draw(ctx, w, h, p) {
+  // Versión de la imagen con el color que corresponda según "Color".
+  colored(img, url, p, env, hueStep) {
+    const mode = p.colorMode || "original";
+    if (mode === "original") return img;
+    let color;
+    if (mode === "tint") color = climateColor(p.color || "#ffffff", env);
+    else if (mode === "climate") color = rgbToCss(tempTarget(hexToRgb(p.color || "#ffffff"), weatherOf(env).tempNorm));
+    else color = rainbowColor(hueStep || 0);
+    const amount = p.tintAmount != null ? p.tintAmount : 0.6;
+    return tintedImage(img, url, color, amount);
+  }
+  draw(ctx, w, h, p, env) {
     ctx.globalCompositeOperation = "source-over";
     if (p.mode === "always") {
       for (const f of this.floating.values()) {
-        const img = getImage(f.url);
+        let img = getImage(f.url);
         if (!img) continue;
+        img = this.colored(img, f.url, p, env, f.hueStep);
         this.drawImage(ctx, img, f.x, f.y, p.size * f.scale * (1 + 0.25 * f.near), f.rot || 0, p.fadeTo, p.blur);
       }
       return;
     }
     for (const it of this.items) {
-      const img = getImage(it.url);
+      let img = getImage(it.url);
       if (!img) continue;
+      img = this.colored(img, it.url, p, env, it.hueStep);
       let scale, alpha, blur;
       if (!it.flying) {
         const a = Math.min(1, it.age / 0.35);

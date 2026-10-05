@@ -59,7 +59,10 @@
       { key: "baseX", label: "Posición X (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
       { key: "baseY", label: "Posición base Y (%)", type: "range", min: 0, max: 100, step: 1, default: 100 },
       ATTRACT,
-      CLIMATE
+      CLIMATE,
+      { key: "colorCore", label: "Color del centro", type: "color", default: "#ffffc8" },
+      { key: "colorMid", label: "Color medio", type: "color", default: "#ffaa28" },
+      { key: "colorTip", label: "Color de las puntas", type: "color", default: "#e63c14" }
     ],
     water: [
       { key: "waveCount", label: "Cantidad de olas", type: "range", min: 1, max: 6, step: 1, default: 3 },
@@ -146,6 +149,14 @@
       { key: "fadeTo", label: "Transparencia al quedarse", type: "range", min: 0.05, max: 1, step: 0.05, default: 0.7 },
       { key: "blur", label: "Difuminado", type: "range", min: 0, max: 20, step: 0.5, default: 0 },
       { key: "spin", label: "Girar al volar", type: "checkbox", default: true },
+      { key: "colorMode", label: "Color", type: "select", default: "original", options: [
+        { value: "original", label: "Colores originales" },
+        { value: "tint", label: "Teñir con un color" },
+        { value: "climate", label: "Según la temperatura" },
+        { value: "rainbow", label: "Todos los colores (una distinta cada vez)" }
+      ] },
+      { key: "tintAmount", label: "Cuánto se tiñe (1 = silueta del color)", type: "range", min: 0, max: 1, step: 0.05, default: 0.6 },
+      { key: "color", label: "Color para teñir", type: "color", default: "#ff3d8b" },
       ATTRACT,
       CLIMATE
     ],
