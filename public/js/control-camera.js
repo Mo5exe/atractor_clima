@@ -33,6 +33,7 @@ let lastEmptyAt = 0;
 const tracker = new HandTracker({
   preview: $("camPreview"),
   getMirror: () => window.appSettings.mirror !== false,
+  getMaxHands: () => (window.appSettings && window.appSettings.maxHands) || 4,
   getPoint: () => pointSelect.value,
   onStatus: setStatus,
   onHands: (hands) => {

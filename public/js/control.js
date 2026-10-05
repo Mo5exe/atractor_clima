@@ -69,6 +69,12 @@
     $("radiusValue").textContent = v;
     setSetting("attractorRadius", v);
   });
+  $("maxHandsRange").addEventListener("input", (e) => {
+    const v = parseInt(e.target.value, 10);
+    $("maxHandsValue").textContent = v;
+    setSetting("maxHands", v);
+  });
+  $("maxHandsRange").addEventListener("change", (e) => e.target.blur());
   $("cursorChk").addEventListener("change", (e) => setSetting("showCursor", e.target.checked));
   $("mirrorChk").addEventListener("change", (e) => setSetting("mirror", e.target.checked));
   $("countrySelect").addEventListener("change", (e) => setSetting("trendsCountry", e.target.value));
@@ -121,6 +127,8 @@
     $("strengthValue").textContent = Number(s.attractorStrength).toFixed(2);
     setIfIdle($("radiusRange"), "value", s.attractorRadius);
     $("radiusValue").textContent = s.attractorRadius;
+    setIfIdle($("maxHandsRange"), "value", s.maxHands || 4);
+    $("maxHandsValue").textContent = s.maxHands || 4;
     $("cursorChk").checked = !!s.showCursor;
     $("mirrorChk").checked = !!s.mirror;
     setIfIdle($("countrySelect"), "value", s.trendsCountry);

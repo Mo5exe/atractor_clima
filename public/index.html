@@ -172,6 +172,11 @@
             <span class="param-label"><span>Radio de acción (%)</span><span class="param-value" id="radiusValue"></span></span>
             <input type="range" id="radiusRange" min="5" max="150" step="1" />
           </div>
+          <div class="param-control">
+            <span class="param-label"><span>Manos a detectar con la cámara</span><span class="param-value" id="maxHandsValue"></span></span>
+            <input type="range" id="maxHandsRange" min="1" max="6" step="1" />
+          </div>
+          <p class="muted small">Multitouch: en una pantalla o mesa táctil, cada dedo sobre la salida es una mano.</p>
           <label class="check"><input type="checkbox" id="cursorChk" /> Mostrar círculo de la mano en la salida</label>
           <p class="muted small">Cada capa también tiene su propio control de “Atracción a la mano”.</p>
           <div id="handLive" class="status">Mano: —</div>

@@ -25,7 +25,7 @@
   let trends = [];
   let cameraHands = [];       // normalizadas 0..1, llegan del panel de control
   let cameraHandsAt = 0;
-  let mouseHand = null;       // normalizada 0..1
+  const touches = new Map();   // pointerId -> { x, y } normalizadas 0..1 (cada dedo o el mouse)
   const instances = new Map(); // layerId -> instancia de efecto
 
   socket.on("state", (state) => {
@@ -199,14 +199,21 @@
     cameraHandsAt = performance.now();
   });
 
-  // --- Mouse / touch como mano de prueba ---
-  function setMouse(evt) {
-    mouseHand = { x: evt.clientX / window.innerWidth, y: evt.clientY / window.innerHeight };
+  // --- Multitouch: cada dedo (pantalla o mesa táctil) o el mouse es una mano ---
+  function setTouch(evt) {
+    touches.set(evt.pointerId, { x: evt.clientX / window.innerWidth, y: evt.clientY / window.innerHeight });
   }
-  canvas.addEventListener("pointerdown", (evt) => { canvas.setPointerCapture(evt.pointerId); setMouse(evt); });
-  canvas.addEventListener("pointermove", (evt) => { if (mouseHand) setMouse(evt); });
-  canvas.addEventListener("pointerup", () => { mouseHand = null; });
-  canvas.addEventListener("pointercancel", () => { mouseHand = null; });
+  canvas.addEventListener("pointerdown", (evt) => {
+    try { canvas.setPointerCapture(evt.pointerId); } catch (e) { /* algunos dedos no se pueden capturar */ }
+    setTouch(evt);
+  });
+  canvas.addEventListener("pointermove", (evt) => { if (touches.has(evt.pointerId)) setTouch(evt); });
+  const endTouch = (evt) => { touches.delete(evt.pointerId); };
+  canvas.addEventListener("pointerup", endTouch);
+  canvas.addEventListener("pointercancel", endTouch);
+  canvas.addEventListener("lostpointercapture", endTouch);
+  // Evitar el menú del clic largo en pantallas táctiles.
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
   // Doble clic = pantalla completa
   canvas.addEventListener("dblclick", () => {
@@ -217,15 +224,16 @@
   function screenHands(w, h) {
     const list = [];
     // Si la cámara deja de mandar datos, a los 0,5 s se considera que no hay mano.
+    // Cada mano lleva un id estable ("c" cámara del panel, "l" cámara de la
+    // salida, "t" dedo/mouse) para que cada una tenga sus palabras, olas, etc.
     if (performance.now() - cameraHandsAt < 500) {
-      for (const hnd of cameraHands) list.push({ x: hnd.x * w, y: hnd.y * h });
+      cameraHands.forEach((hnd, i) => list.push({ id: "c" + (hnd.id != null ? hnd.id : i), x: hnd.x * w, y: hnd.y * h }));
     }
-    // Cámara propia de la salida (output.html?camara=1)
     const local = window.localCameraHands;
     if (local && performance.now() - local.at < 500) {
-      for (const hnd of local.hands) list.push({ x: hnd.x * w, y: hnd.y * h });
+      local.hands.forEach((hnd, i) => list.push({ id: "l" + (hnd.id != null ? hnd.id : i), x: hnd.x * w, y: hnd.y * h }));
     }
-    if (mouseHand) list.push({ x: mouseHand.x * w, y: mouseHand.y * h });
+    for (const [pid, t] of touches) list.push({ id: "t" + pid, x: t.x * w, y: t.y * h });
     return list;
   }
 
@@ -313,7 +321,7 @@
       const attract = layer.params.attract != null ? layer.params.attract : 1;
       const climate = layer.params.climate != null ? layer.params.climate : 1;
       const env = {
-        hands: hands.map((pt) => toLayerSpace(pt, w, h, transform)),
+        hands: hands.map((pt) => Object.assign(toLayerSpace(pt, w, h, transform), { id: pt.id })),
         strength: globalStrength * attract,
         radius,
         words: trends,

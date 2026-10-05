@@ -352,6 +352,7 @@
     attractorRadius: 60,    // % de la diagonal de la pantalla donde actúa la mano
     mirror: true,           // espejar la cámara (como un espejo)
     showCursor: true,       // dibujar un círculo donde está la mano
+    maxHands: 4,            // cuántas manos detecta la cámara a la vez (1 a 6)
     wordSource: "clima",
     trendsCountry: "argentina",
     customWords: DEFAULT_CUSTOM_WORDS,

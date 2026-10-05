@@ -30,6 +30,7 @@ if (params.get("camara") === "1" || params.get("camera") === "1") {
   const tracker = new HandTracker({
     preview,
     getMirror: () => !window.appSettings || window.appSettings.mirror !== false,
+    getMaxHands: () => (window.appSettings && window.appSettings.maxHands) || 4,
     getPoint: () => (params.get("punto") === "indice" ? "index" : "palm"),
     onStatus: (text, kind) => {
       badge.textContent = "Cámara: " + text + (kind === "ok" ? "  (tecla C: ver cámara)" : "");

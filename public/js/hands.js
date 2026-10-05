@@ -32,7 +32,8 @@ async function modelUrl() {
   return MODEL_REMOTE;
 }
 
-async function loadLandmarker(onStatus) {
+// numHands: cuántas manos busca a la vez (se puede cambiar después con setOptions).
+async function loadLandmarker(onStatus, numHands) {
   if (landmarkerPromise) return landmarkerPromise;
   landmarkerPromise = (async () => {
     onStatus("Cargando detector de manos…", "info");
@@ -41,7 +42,7 @@ async function loadLandmarker(onStatus) {
     const options = (modelAssetPath, delegate) => ({
       baseOptions: { modelAssetPath, delegate },
       runningMode: "VIDEO",
-      numHands: 2,
+      numHands: numHands || 4,
       minHandDetectionConfidence: 0.5,
       minHandPresenceConfidence: 0.5,
       minTrackingConfidence: 0.5
@@ -85,6 +86,9 @@ export class HandTracker {
     this.preview = opts.preview || null; // <canvas> opcional para ver la cámara
     this.getMirror = opts.getMirror || (() => true);
     this.getPoint = opts.getPoint || (() => "palm");
+    this.getMaxHands = opts.getMaxHands || (() => 4);
+    this.numHands = 0;
+    this.nextId = 1;
     this.video = document.createElement("video");
     this.video.playsInline = true;
     this.video.muted = true;
@@ -122,7 +126,10 @@ export class HandTracker {
     await this.video.play().catch(() => {});
 
     try {
-      this.landmarker = await loadLandmarker(this.onStatus);
+      this.numHands = Math.max(1, Math.min(6, Math.round(this.getMaxHands())));
+      this.landmarker = await loadLandmarker(this.onStatus, this.numHands);
+      // Si el detector ya estaba creado con otra cantidad de manos, ajustarlo.
+      await this.landmarker.setOptions({ numHands: this.numHands }).catch(() => {});
     } catch (err) {
       console.error("No se pudo cargar MediaPipe", err);
       this.onStatus("No se pudo cargar el detector de manos (¿sin internet la primera vez?). La cámara se ve, pero sin detección. Podés simular la mano con el mouse en la salida.", "error");
@@ -164,7 +171,17 @@ export class HandTracker {
     const video = this.video;
     let results = null;
 
-    if (video.readyState >= 2 && video.currentTime !== this.lastVideoTime) {
+    // ¿Cambió la cantidad de manos a detectar desde el panel?
+    const wantHands = Math.max(1, Math.min(6, Math.round(this.getMaxHands())));
+    if (this.landmarker && wantHands !== this.numHands && !this.changingHands) {
+      this.changingHands = true;
+      this.landmarker.setOptions({ numHands: wantHands })
+        .then(() => { this.numHands = wantHands; })
+        .catch(() => {})
+        .finally(() => { this.changingHands = false; });
+    }
+
+    if (video.readyState >= 2 && video.currentTime !== this.lastVideoTime && !this.changingHands) {
       this.lastVideoTime = video.currentTime;
       if (this.landmarker) {
         try {
@@ -180,11 +197,26 @@ export class HandTracker {
           const pt = this._handPoint(lm);
           return { x: mirror ? 1 - pt.x : pt.x, y: pt.y };
         });
-        // Suavizado para que el punto no tiemble.
-        const smoothed = raw.map((pt, i) => {
-          const prev = this.smoothed[i];
-          if (!prev) return pt;
-          return { x: prev.x + (pt.x - prev.x) * 0.55, y: prev.y + (pt.y - prev.y) * 0.55 };
+        // Cada mano conserva su número (id) aunque cambie el orden en que la
+        // detecta MediaPipe: se empareja con la mano anterior más cercana.
+        // Así cada mano tiene sus propias palabras, olas, etc. Y se suaviza
+        // para que el punto no tiemble.
+        const prev = this.smoothed.slice();
+        const smoothed = [];
+        raw.forEach((pt) => {
+          let best = -1, bestD = 0.18; // como mucho 18% de la pantalla entre cuadros
+          prev.forEach((q, i) => {
+            if (!q) return;
+            const d = Math.hypot(q.x - pt.x, q.y - pt.y);
+            if (d < bestD) { bestD = d; best = i; }
+          });
+          if (best >= 0) {
+            const q = prev[best];
+            prev[best] = null;
+            smoothed.push({ id: q.id, x: q.x + (pt.x - q.x) * 0.55, y: q.y + (pt.y - q.y) * 0.55 });
+          } else {
+            smoothed.push({ id: this.nextId++, x: pt.x, y: pt.y });
+          }
         });
         this.smoothed = smoothed;
         this.onHands(smoothed);

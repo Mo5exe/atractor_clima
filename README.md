@@ -110,6 +110,18 @@ Fuente **"Palabras del clima"** (por defecto), que mezcla:
 
 También están las otras fuentes: lista propia, Wikipedia, titulares de diarios, Google, X.
 
+## Multitouch
+
+- **Cámara**: detecta hasta 6 manos a la vez (por defecto 4, se elige en el panel, tarjeta
+  ⚡ Atractor). Cada mano conserva su identidad aunque se mueva.
+- **Pantalla o mesa táctil**: en la ventana de salida, cada dedo es una mano (el mouse
+  también).
+- Cada mano tiene sus propias palabras, imágenes y animaciones; el agua hace una ola por
+  mano; el glitch "alrededor de la mano" aparece en todas. Partículas, flow field, rayas,
+  árbol, fuego, nubes y lluvia van hacia la mano más cercana.
+
+La versión anterior al multitouch quedó en la rama `version-2-antes-del-multitouch`.
+
 ## Probar sin cámara
 
 En la salida, mantené el clic y mové el mouse: funciona como la mano.

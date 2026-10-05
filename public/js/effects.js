@@ -150,6 +150,48 @@ function pullToward(env, x, y) {
   return best;
 }
 
+
+// --- Multitouch: aparición por mano -------------------------------------------
+// Cada mano (o dedo) tiene su propia palabra/imagen/animación: cuando toca
+// aparece una; mientras sigue ahí, aparece otra después de "interval".
+// Además, con la música, el beat hace aparecer una en un lugar al azar.
+function spawnPerHand(fx, hands, dt, p, env, w, h) {
+  if (!fx.slots) fx.slots = new Map();
+  const seen = new Set();
+  for (const hnd of hands) {
+    const id = hnd.id != null ? hnd.id : "h0";
+    seen.add(id);
+    let slot = fx.slots.get(id);
+    if (!slot) { slot = { wait: Infinity }; fx.slots.set(id, slot); } // mano nueva: aparece ya
+    if (fx.items.some((it) => !it.flying && it.owner === id)) { slot.wait = 0; continue; }
+    slot.wait += dt;
+    if (slot.wait >= p.interval) {
+      const before = fx.items.length;
+      fx.spawn(hnd, p, env);
+      if (fx.items.length > before) fx.items[fx.items.length - 1].owner = id;
+      slot.wait = 0;
+    }
+  }
+  for (const id of Array.from(fx.slots.keys())) if (!seen.has(id)) fx.slots.delete(id);
+
+  const au = musicOf(env);
+  const beatBusy = fx.items.some((it) => !it.flying && it.owner === "beat");
+  if (beatBusy) fx.waitTimer = 0; else fx.waitTimer += dt;
+  if (!beatBusy && fx.waitTimer >= p.interval && au && au.beat && Math.random() < au.m) {
+    const before = fx.items.length;
+    fx.spawn({ x: w * (0.15 + Math.random() * 0.7), y: h * (0.2 + Math.random() * 0.6) }, p, env);
+    if (fx.items.length > before) fx.items[fx.items.length - 1].owner = "beat";
+    fx.waitTimer = 0;
+  }
+}
+// Mientras está quieta, cada palabra/imagen sigue a SU mano.
+function ownerPull(env, hands, it) {
+  const own = it.owner && hands.find((hh) => hh.id === it.owner);
+  if (own) return { dx: own.x - it.x, dy: own.y - it.y };
+  if (it.owner === "beat") return null;
+  return pullToward(env, it.x, it.y);
+}
+
 // ---------------------------------------------------------------------------
 // 1) PARTICULAS — salen del origen; convergen a la mano; el viento las arrastra
 // ---------------------------------------------------------------------------
@@ -463,18 +505,24 @@ function drawWaterShape(ctx, w, h, p, st, rgb) {
     // Capas internas: en la banda se van achicando hacia el centro.
     const inset = i * (p.amplitude * 0.3);
     const wave = (x) => Math.sin((x / w) * Math.PI * 2 * freq + phase) * amp;
-    const bump = (x) => {
-      if (st.lift <= 0.001 || st.liftY === undefined) return 0;
-      const g = Math.exp(-((x - st.liftX) * (x - st.liftX)) / (2 * sigma * sigma));
-      return g * st.lift * (1 - i * 0.12);
-    };
+    // Una ola por cada mano (st.lifts: [{ x, y, lift }]).
+    const lifts = st.lifts || [];
+    const k = 1 - i * 0.12;
     ctx.beginPath();
     if (band) {
-      // Hacia la mano la banda se hincha (arriba y abajo a la vez).
-      const reach = Math.min(Math.abs(st.liftY - levelY), h * 0.45) * 0.85;
+      // Hacia cada mano la banda se hincha (arriba y abajo a la vez).
+      const swell = (x) => {
+        let sum = 0;
+        for (const L of lifts) {
+          if (L.lift <= 0.001) continue;
+          const g = Math.exp(-((x - L.x) * (x - L.x)) / (2 * sigma * sigma));
+          sum += g * L.lift * Math.min(Math.abs(L.y - levelY), h * 0.45) * 0.85;
+        }
+        return sum * k;
+      };
       const top = [];
       for (let x = x0; x <= x1 + step; x += step) {
-        const y = levelY - half + inset + wave(x) - reach * bump(x);
+        const y = levelY - half + inset + wave(x) - swell(x);
         top.push([x, y]);
       }
       ctx.moveTo(top[0][0], top[0][1]);
@@ -482,10 +530,18 @@ function drawWaterShape(ctx, w, h, p, st, rgb) {
       // Borde de abajo: espejo del de arriba respecto del centro.
       for (let j = top.length - 1; j >= 0; j--) ctx.lineTo(top[j][0], 2 * levelY - top[j][1]);
     } else {
-      const reach = st.liftY !== undefined ? (st.liftY - levelY) : 0;
+      const lift = (x) => {
+        let sum = 0;
+        for (const L of lifts) {
+          if (L.lift <= 0.001) continue;
+          const g = Math.exp(-((x - L.x) * (x - L.x)) / (2 * sigma * sigma));
+          sum += g * L.lift * (L.y - levelY) * 0.85;
+        }
+        return sum * k;
+      };
       ctx.moveTo(x0, h + margin);
       for (let x = x0; x <= x1 + step; x += step) {
-        ctx.lineTo(x, levelY + inset + wave(x) + reach * 0.85 * bump(x));
+        ctx.lineTo(x, levelY + inset + wave(x) + lift(x));
       }
       ctx.lineTo(x1 + step, h + margin);
     }
@@ -509,10 +565,24 @@ class WaterEffect {
     // La lluvia sube el nivel poco a poco (hasta 18% de la pantalla).
     const targetLevel = weatherOf(env).rainNorm * c * 0.18 * h;
     this.level += (targetLevel - this.level) * Math.min(1, dt * 0.3);
-    const hand = env && env.hands && env.hands[0];
-    const target = hand ? env.strength : 0;
-    this.lift += (target - this.lift) * Math.min(1, dt * 4);
-    if (hand) { this.liftX = hand.x; this.liftY = hand.y; }
+    // Una ola por mano: crece mientras la mano está y se apaga sola al irse.
+    if (!this.liftMap) this.liftMap = new Map();
+    const present = new Set();
+    for (const hnd of (env && env.hands) || []) {
+      const id = hnd.id != null ? hnd.id : "h0";
+      present.add(id);
+      let L = this.liftMap.get(id);
+      if (!L) { L = { x: hnd.x, y: hnd.y, lift: 0 }; this.liftMap.set(id, L); }
+      L.x = hnd.x; L.y = hnd.y;
+      L.lift += (env.strength - L.lift) * Math.min(1, dt * 4);
+    }
+    for (const [id, L] of this.liftMap) {
+      if (!present.has(id)) {
+        L.lift += (0 - L.lift) * Math.min(1, dt * 4);
+        if (L.lift < 0.002) this.liftMap.delete(id);
+      }
+    }
+    this.lifts = Array.from(this.liftMap.values());
   }
   draw(ctx, w, h, p, env) {
     drawWaterShape(ctx, w, h, p, this, climateRgb(p.color, env));
@@ -576,24 +646,12 @@ class TrendingWordsEffect {
   update(dt, t, w, h, p, env) {
     const hands = (env && env.hands) || [];
     const APPEAR = 0.35;
-    const current = this.items.find((it) => !it.flying);
-    if (!current) this.waitTimer += dt;
-    if (hands.length > 0 && !current && this.waitTimer >= p.interval) {
-      this.spawn(hands[0], p, env);
-      this.waitTimer = 0;
-    } else if (!current && this.waitTimer >= p.interval) {
-      // Beat: aparece en un lugar al azar (aunque nadie toque).
-      const au = musicOf(env);
-      if (au && au.beat && Math.random() < au.m) {
-        this.spawn({ x: w * (0.15 + Math.random() * 0.7), y: h * (0.2 + Math.random() * 0.6) }, p, env);
-        this.waitTimer = 0;
-      }
-    }
+    spawnPerHand(this, hands, dt, p, env, w, h);
     const wind = windOf(env);
     for (const it of this.items) {
       it.age += dt;
       if (!it.flying) {
-        const pull = pullToward(env, it.x, it.y);
+        const pull = ownerPull(env, hands, it);
         if (pull) {
           const follow = Math.min(1, dt * 6 * Math.min(1, env.strength));
           it.x += pull.dx * follow;
@@ -1243,24 +1301,12 @@ class ImagesEffect {
       return;
     }
     this.floating.clear();
-    const current = this.items.find((it) => !it.flying);
-    if (!current) this.waitTimer += dt;
-    if (hands.length > 0 && !current && this.waitTimer >= p.interval) {
-      this.spawn(hands[0], p, env);
-      this.waitTimer = 0;
-    } else if (!current && this.waitTimer >= p.interval) {
-      // Beat: aparece en un lugar al azar (aunque nadie toque).
-      const au = musicOf(env);
-      if (au && au.beat && Math.random() < au.m) {
-        this.spawn({ x: w * (0.15 + Math.random() * 0.7), y: h * (0.2 + Math.random() * 0.6) }, p, env);
-        this.waitTimer = 0;
-      }
-    }
+    spawnPerHand(this, hands, dt, p, env, w, h);
     const wind = windOf(env);
     for (const it of this.items) {
       it.age += dt;
       if (!it.flying) {
-        const pull = pullToward(env, it.x, it.y);
+        const pull = ownerPull(env, hands, it);
         if (pull) {
           const follow = Math.min(1, dt * 6 * Math.min(1, env.strength));
           it.x += pull.dx * follow;
@@ -1380,19 +1426,19 @@ class GlitchEffect {
       if (au.beat && p.timing !== "always" && Math.random() < au.m) {
         this.burstLeft = Math.max(this.burstLeft, p.burstLength * 0.7);
         this.active = true;
-        this.lastRoll = -1; // patrón nuevo con el golpe
+        this.epoch = (this.epoch || 0) + 1; // patrón nuevo con el golpe
       }
       this.handBoost *= 1 + au.volume * 0.8;
       this.treble = au.treble;
     } else this.treble = 0;
     this.wasTouching = touching;
   }
-  region(ctx, w, h, p, env) {
+  region(ctx, w, h, p, env, handArg) {
     const m = ctx.getTransform();
     if (p.area === "full") return { x: 0, y: 0, w: ctx.canvas.width, h: ctx.canvas.height };
     let cx, cy;
     if (p.area === "hand") {
-      const hand = env && env.hands && env.hands[0];
+      const hand = handArg || (env && env.hands && env.hands[0]);
       if (!hand) return null;
       const pt = new DOMPoint(hand.x, hand.y).matrixTransform(m);
       cx = pt.x; cy = pt.y;
@@ -1486,33 +1532,52 @@ class GlitchEffect {
   }
   draw(ctx, w, h, p, env) {
     if (!this.active) return;
-    let r = this.region(ctx, w, h, p, env);
-    if (!r || r.w < 4 || r.h < 4) return;
     const amount = Math.min(1, p.intensity * this.climateBoost * this.handBoost);
-    const canvas = ctx.canvas;
-    if (this.lastRoll < 0 || this.t - this.lastRoll >= 1 / Math.max(1, p.speed) || !this.pattern) {
-      // Nueva forma (con ramitas) y nuevo patrón de glitch dentro de ella.
-      this.rects = this.shape(r, p, canvas.width, canvas.height);
-      if (!this.rects.length) return;
-      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const q of this.rects) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x + q.w); y1 = Math.max(y1, q.y + q.h); }
-      this.box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-      this.pattern = this.roll(this.box, p, amount);
-      this.lastRoll = this.t;
+    if (!this.zones) this.zones = new Map();
+    if (p.area === "hand") {
+      // Una zona (con sus ramitas) por cada mano.
+      const hands = (env && env.hands) || [];
+      const seen = new Set();
+      for (const hnd of hands) {
+        const id = hnd.id != null ? hnd.id : "h0";
+        seen.add(id);
+        if (!this.zones.has(id)) this.zones.set(id, {});
+        const r = this.region(ctx, w, h, p, env, hnd);
+        if (r) this.drawZone(ctx, p, env, this.zones.get(id), r, amount);
+      }
+      for (const id of Array.from(this.zones.keys())) if (!seen.has(id)) this.zones.delete(id);
+      return;
     }
-    const pat = this.pattern;
+    if (!this.zones.has("main")) this.zones.set("main", {});
+    const r = this.region(ctx, w, h, p, env);
+    if (r) this.drawZone(ctx, p, env, this.zones.get("main"), r, amount);
+  }
+  drawZone(ctx, p, env, Z, r, amount) {
+    if (!r || r.w < 4 || r.h < 4) return;
+    const canvas = ctx.canvas;
+    if (Z.epoch !== this.epoch || Z.lastRoll == null || this.t - Z.lastRoll >= 1 / Math.max(1, p.speed) || !Z.pattern) {
+      // Nueva forma (con ramitas) y nuevo patrón de glitch dentro de ella.
+      Z.rects = this.shape(r, p, canvas.width, canvas.height);
+      if (!Z.rects.length) return;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of Z.rects) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x + q.w); y1 = Math.max(y1, q.y + q.h); }
+      Z.box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      Z.pattern = this.roll(Z.box, p, amount);
+      Z.lastRoll = this.t;
+      Z.epoch = this.epoch;
+      Z.anchorX = r.x; Z.anchorY = r.y;
+    }
+    const pat = Z.pattern;
     // Si la zona se mueve (mano), la forma acompaña sin esperar al próximo cambio.
-    const box0 = this.box;
-    const ox = r.part ? Math.round(r.x - (this.anchorX != null ? this.anchorX : r.x)) : 0;
-    const oy = r.part ? Math.round(r.y - (this.anchorY != null ? this.anchorY : r.y)) : 0;
-    if (this.lastRoll === this.t) { this.anchorX = r.x; this.anchorY = r.y; }
-    r = { x: box0.x + ox, y: box0.y + oy, w: box0.w, h: box0.h };
+    const ox = r.part ? Math.round(r.x - Z.anchorX) : 0;
+    const oy = r.part ? Math.round(r.y - Z.anchorY) : 0;
+    r = { x: Z.box.x + ox, y: Z.box.y + oy, w: Z.box.w, h: Z.box.h };
     if (r.w < 4 || r.h < 4) return;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.translate(ox, oy);
     ctx.beginPath();
-    for (const q of this.rects) ctx.rect(q.x, q.y, q.w, q.h);
+    for (const q of Z.rects) ctx.rect(q.x, q.y, q.w, q.h);
     ctx.clip();
     ctx.translate(-ox, -oy);
     ctx.globalAlpha = 1;
@@ -1778,20 +1843,12 @@ class AnimationsEffect {
     // Al tocar (y también con el beat, si hay música).
     this.floating.clear();
     const hands = (env && env.hands) || [];
-    const current = this.items.find((it) => !it.flying);
-    if (!current) this.waitTimer += dt;
-    if (hands.length > 0 && !current && this.waitTimer >= p.interval) {
-      this.spawn(hands[0], p, env);
-      this.waitTimer = 0;
-    } else if (!current && this.waitTimer >= p.interval && au && au.beat && Math.random() < au.m) {
-      this.spawn({ x: w * (0.15 + Math.random() * 0.7), y: h * (0.2 + Math.random() * 0.6) }, p, env);
-      this.waitTimer = 0;
-    }
+    spawnPerHand(this, hands, dt, p, env, w, h);
     const wind = windOf(env);
     for (const it of this.items) {
       it.age += dt;
       if (!it.flying) {
-        const pull = pullToward(env, it.x, it.y);
+        const pull = ownerPull(env, hands, it);
         if (pull) {
           const follow = Math.min(1, dt * 6 * Math.min(1, env.strength));
           it.x += pull.dx * follow;
