@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atractor — Panel de Control</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🎛️ Atractor <span class="version">v2</span></h1>
+      <p>Panel de control — los cambios se ven en vivo en la ventana de salida.</p>
+    </div>
+    <div class="row">
+      <button id="openOutputCamBtn" class="primary" title="La salida usa la cámara directamente (ideal con una sola pantalla)">Abrir salida con cámara ↗</button>
+      <button id="openOutputBtn" class="link" title="Salida sin cámara propia (la cámara la maneja este panel)">Abrir salida sin cámara ↗</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- ===== PRESETS ===== -->
+    <aside class="sidebar">
+      <h2>📌 Presets</h2>
+      <form id="presetForm" class="preset-form">
+        <input id="presetName" type="text" maxlength="60" placeholder="Nombre del preset" />
+        <button type="submit" class="primary">Guardar</button>
+      </form>
+      <p class="muted small">Guarda todas las capas y ajustes actuales. Clic en un preset para cargarlo.</p>
+      <div id="presetsList" class="presets-list"></div>
+    </aside>
+
+    <main>
+      <!-- ===== CÁMARA + ATRACTOR + TRENDING ===== -->
+      <section class="top-grid">
+        <div class="card">
+          <div class="card-title">🖐️ Cámara y mano</div>
+          <p class="cam-note">Lo más simple: apretá <b>“Abrir salida con cámara”</b> arriba. La salida detecta la mano sola, aunque tape este panel.<br>Esta vista previa sirve para probar y encuadrar la cámara.</p>
+          <canvas id="camPreview" class="cam-preview" width="640" height="480"></canvas>
+          <div class="row">
+            <button id="camBtn" class="primary">Activar cámara</button>
+            <select id="camSelect" title="Cámara" hidden></select>
+          </div>
+          <div class="row wrap">
+            <label class="check"><input type="checkbox" id="mirrorChk" checked /> Espejar</label>
+            <label class="check">Punto:
+              <select id="pointSelect">
+                <option value="palm">Palma</option>
+                <option value="index">Punta del índice</option>
+              </select>
+            </label>
+          </div>
+          <div id="camStatus" class="status info">Cámara apagada.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">⚡ Atractor</div>
+          <div class="param-control">
+            <span class="param-label"><span>Fuerza</span><span class="param-value" id="strengthValue"></span></span>
+            <input type="range" id="strengthRange" min="0" max="1" step="0.05" />
+          </div>
+          <div class="param-control">
+            <span class="param-label"><span>Radio de acción (%)</span><span class="param-value" id="radiusValue"></span></span>
+            <input type="range" id="radiusRange" min="5" max="150" step="1" />
+          </div>
+          <label class="check"><input type="checkbox" id="cursorChk" /> Mostrar círculo de la mano en la salida</label>
+          <p class="muted small">Cada capa también tiene su propio control de “Atracción a la mano”.</p>
+          <div id="handLive" class="status">Mano: —</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">💬 Palabras</div>
+          <select id="sourceSelect" title="De dónde salen las palabras"></select>
+          <p id="sourceHint" class="muted small"></p>
+          <div class="row" id="countryRow">
+            <select id="countrySelect" title="País"></select>
+            <button id="refreshTrendsBtn" title="Volver a buscar">↻ Actualizar</button>
+          </div>
+          <div id="customBox" class="custom-box">
+            <textarea id="customWords" rows="5" spellcheck="false" placeholder="palabra, otra palabra, frase corta…"></textarea>
+            <div class="row">
+              <button id="saveWordsBtn" class="primary">Usar estas palabras</button>
+              <button id="resetWordsBtn" title="Volver a la lista de ejemplo">Restaurar ejemplo</button>
+            </div>
+          </div>
+          <div id="trendsStatus" class="status info">Cargando…</div>
+          <div id="trendsList" class="chips"></div>
+        </div>
+      </section>
+
+      <!-- ===== CAPAS ===== -->
+      <div class="toolbar">
+        <select id="effectType"></select>
+        <button id="addLayerBtn" class="primary">+ Añadir capa</button>
+        <button id="clearBtn" class="danger">Eliminar todas las capas</button>
+      </div>
+
+      <div id="layersContainer"></div>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/schemas.js"></script>
+  <script src="js/control.js"></script>
+  <script type="module" src="js/control-camera.js"></script>
+</body>
+</html>
