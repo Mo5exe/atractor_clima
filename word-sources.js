@@ -18,7 +18,7 @@
 "use strict";
 
 const { getTrends } = require("./trending-scraper.js");
-const { COUNTRIES } = require("./public/js/schemas.js");
+const { COUNTRIES, NEWS_SOURCES } = require("./public/js/schemas.js");
 
 const CACHE_MS = 3 * 60 * 1000;
 const cache = new Map(); // clave -> { at, trends }
@@ -115,27 +115,9 @@ async function wikipediaMostRead(country) {
 }
 
 // --------------------------------------------------------------- Diarios
-const NEWS_FEEDS = {
-  argentina: [
-    "https://www.pagina12.com.ar/rss/portada",
-    "https://www.clarin.com/rss/lo-ultimo/",
-    "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml",
-    "https://www.infobae.com/feeds/rss/",
-    "https://www.perfil.com/feed"
-  ],
-  spain: [
-    "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
-    "https://www.elmundo.es/rss/portada.xml"
-  ],
-  mexico: ["https://www.jornada.com.mx/rss/edicion.xml"],
-  default: [
-    "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
-    "https://www.pagina12.com.ar/rss/portada",
-    "https://www.infobae.com/feeds/rss/"
-  ]
-};
+// Los diarios están en public/js/schemas.js (NEWS_SOURCES), para que el panel los muestre.
 
-const STOPWORDS = new Set((
+const STOPWORDS_ES = new Set((
   "a al algo algún alguna algunas alguno algunos ante antes aquel aquella aquellas aquellos aquí así aún aunque bajo bien cada casi " +
   "como cómo con contra cual cuál cuales cuando cuándo cuanto de del desde donde dónde dos durante e el él ella ellas ellos en entre " +
   "era eran es esa esas ese eso esos esta está están estas este esto estos fue fueron ha había han hasta hay la las le les lo los " +
@@ -146,6 +128,32 @@ const STOPWORDS = new Set((
   "video videos foto fotos últimas última último minuto vivo directo cuál quiénes cuánto cuánta hacer tener estar"
 ).split(/\s+/));
 
+const STOPWORDS_EN = new Set((
+  "the a an and or but of to in on at for with from by as is are was were be been being has have had do does did " +
+  "this that these those it its it's he she they them his her their we our you your i me my not no yes will would " +
+  "can could should may might must shall than then there here what when where which who whom whose why how all any " +
+  "some more most other such only own same so too very just also into over after before about against between " +
+  "through during under again further once out up down off new says said say amid over year years day days week " +
+  "weeks first last after video watch live latest update updates news report reports explained analysis how why"
+).split(/\s+/));
+
+const STOPWORDS_DE = new Set((
+  "der die das den dem des ein eine einer eines einem einen und oder aber nicht kein keine ist sind war waren wird " +
+  "werden wurde wurden hat haben hatte hatten sein seine ihr ihre wir sie ich du er es man mit von zu zum zur bei " +
+  "nach vor aus auf für über unter durch gegen ohne um an im in am als wie was wer wo wann warum auch noch nur schon " +
+  "sehr mehr neue neuer neues neuen jahr jahre tag tage heute gestern morgen dass denn doch wenn weil soll sollen " +
+  "kann können muss müssen will wollen video live news ticker"
+).split(/\s+/));
+
+const STOPWORDS_FR = new Set((
+  "le la les un une des du de d l et ou mais pas ne ni est sont était étaient sera être a ont avait avoir ce cet " +
+  "cette ces il elle ils elles on nous vous je tu son sa ses leur leurs dans en sur sous pour par avec sans chez " +
+  "entre vers après avant contre plus moins très aussi encore déjà comme que qui quoi dont où quand pourquoi comment " +
+  "tout tous toute toutes nouveau nouvelle nouveaux an ans jour jours fait faire selon direct vidéo"
+).split(/\s+/));
+
+const STOPWORDS = { es: STOPWORDS_ES, en: STOPWORDS_EN, de: STOPWORDS_DE, fr: STOPWORDS_FR, pt: STOPWORDS_ES };
+
 function headlinesFromRss(xml) {
   const titles = [];
   const re = /<item[\s>][\s\S]*?<title[^>]*>([\s\S]*?)<\/title>/gi;
@@ -154,22 +162,23 @@ function headlinesFromRss(xml) {
   return titles.filter(Boolean);
 }
 
-function keywordsFromHeadlines(headlines) {
+function keywordsFromHeadlines(headlines, lang) {
+  const stop = STOPWORDS[lang] || STOPWORDS_ES;
   const counts = new Map();
   const display = new Map();
   for (const h of headlines) {
     const seenInThis = new Set();
-    const tokens = h.split(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]+/);
+    const tokens = h.split(/[^\p{L}\p{N}'’-]+/u).map((t) => t.replace(/['’]s$/i, "").replace(/['’]/g, ""));
     for (const raw of tokens) {
       const tok = raw.replace(/^-+|-+$/g, "");
       if (tok.length < 4) continue;
       const key = tok.toLowerCase();
-      if (STOPWORDS.has(key) || /^\d+$/.test(key)) continue;
+      if (stop.has(key) || STOPWORDS_ES.has(key) && lang === "es" || /^\d+$/.test(key)) continue;
       if (seenInThis.has(key)) continue;
       seenInThis.add(key);
       counts.set(key, (counts.get(key) || 0) + 1);
       // Preferir la forma con mayúscula si aparece (nombres propios).
-      if (!display.has(key) || /^[A-ZÁÉÍÓÚÑ]/.test(tok)) display.set(key, tok);
+      if (!display.has(key) || /^\p{Lu}/u.test(tok)) display.set(key, tok);
     }
   }
   const list = Array.from(counts.entries())
@@ -183,8 +192,9 @@ function keywordsFromHeadlines(headlines) {
   return rankToPopularity(list);
 }
 
-async function newsWords(country) {
-  const feeds = NEWS_FEEDS[country] || NEWS_FEEDS.default;
+async function newsWords(newsSource) {
+  const src = NEWS_SOURCES.find((n) => n.id === newsSource) || NEWS_SOURCES[0];
+  const feeds = src.feeds;
   const results = await Promise.allSettled(feeds.map((url) => fetchText(url)));
   const headlines = [];
   let ok = 0;
@@ -193,7 +203,7 @@ async function newsWords(country) {
     else console.warn("[palabras] diario no disponible: " + feeds[i] + " (" + r.reason.message + ")");
   });
   if (ok === 0) throw new Error("ningún diario respondió");
-  return keywordsFromHeadlines(headlines);
+  return keywordsFromHeadlines(headlines, src.lang);
 }
 
 // --------------------------------------------------------------- general
@@ -205,7 +215,7 @@ const SOURCE_LABELS = {
   custom: "Mis palabras"
 };
 
-async function fetchSource(source, country) {
+async function fetchSource(source, country, newsSource) {
   if (source === "trends") {
     const r = await getTrends(country);
     if (r.source === "respaldo") throw new Error("trends24 no disponible");
@@ -213,7 +223,7 @@ async function fetchSource(source, country) {
   }
   if (source === "google") return googleTrends(country);
   if (source === "wikipedia") return wikipediaMostRead(country);
-  if (source === "news") return newsWords(country);
+  if (source === "news") return newsWords(newsSource);
   throw new Error("fuente desconocida: " + source);
 }
 
@@ -226,13 +236,14 @@ async function getWords(settings) {
     return { trends: customWords(settings.customWords), source: "propias", label, fetchedAt: Date.now() };
   }
 
-  const key = source + ":" + country;
+  const newsSource = settings.newsSource || "ar";
+  const key = source + ":" + (source === "news" ? newsSource : country);
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < CACHE_MS) {
     return { trends: cached.trends, source: "ok", label, fetchedAt: cached.at };
   }
   try {
-    const trends = await fetchSource(source, country);
+    const trends = await fetchSource(source, country, newsSource);
     if (!trends || trends.length === 0) throw new Error("no se encontraron palabras");
     cache.set(key, { at: Date.now(), trends });
     console.log("[palabras] " + trends.length + " de " + label + " (" + (countryInfo(country).label) + ")");

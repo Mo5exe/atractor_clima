@@ -9,7 +9,7 @@
 (function () {
   "use strict";
 
-  const { SCHEMAS, NAMES, COUNTRIES, WORD_SOURCES, DEFAULT_CUSTOM_WORDS } = window.EffectSchemas;
+  const { SCHEMAS, NAMES, COUNTRIES, WORD_SOURCES, NEWS_SOURCES, DEFAULT_CUSTOM_WORDS } = window.EffectSchemas;
   const socket = io();
   window.appSocket = socket;
   window.appSettings = {};
@@ -80,6 +80,15 @@
   $("countrySelect").addEventListener("change", (e) => setSetting("trendsCountry", e.target.value));
   $("refreshTrendsBtn").addEventListener("click", () => socket.emit("refresh-trends"));
 
+  (NEWS_SOURCES || []).forEach((n) => {
+    const opt = document.createElement("option");
+    opt.value = n.id;
+    opt.textContent = n.label;
+    $("newsSelect").appendChild(opt);
+  });
+  $("newsSelect").addEventListener("change", (e) => setSetting("newsSource", e.target.value));
+  $("refreshNewsBtn").addEventListener("click", () => socket.emit("refresh-trends"));
+
   WORD_SOURCES.forEach((s) => {
     const opt = document.createElement("option");
     opt.value = s.id;
@@ -113,7 +122,8 @@
     $("sourceHint").textContent = info.hint;
     $("customBox").hidden = source !== "custom";
     $("climateBox").hidden = source !== "clima";
-    $("countryRow").hidden = source === "custom" || source === "clima";
+    $("countryRow").hidden = source === "custom" || source === "clima" || source === "news";
+    $("newsRow").hidden = source !== "news";
   }
 
   function setIfIdle(el, prop, value) {
@@ -132,6 +142,7 @@
     $("cursorChk").checked = !!s.showCursor;
     $("mirrorChk").checked = !!s.mirror;
     setIfIdle($("countrySelect"), "value", s.trendsCountry);
+    setIfIdle($("newsSelect"), "value", s.newsSource || "ar");
     setIfIdle($("sourceSelect"), "value", s.wordSource);
     updateSourceUi(s.wordSource);
     // No pisar lo que la persona está escribiendo.
@@ -142,7 +153,11 @@
   socket.on("trends", (info) => {
     const status = $("trendsStatus");
     const list = $("trendsList");
-    const country = (COUNTRIES.find((c) => c.id === info.country) || {}).label || "—";
+    let country = (COUNTRIES.find((c) => c.id === info.country) || {}).label || "—";
+    if (info.wordSource === "news" || (info.label === "Titulares de diarios")) {
+      const n = (NEWS_SOURCES || []).find((x) => x.id === (window.appSettings.newsSource || "ar"));
+      if (n) country = n.label.replace(/\s*\(.*\)$/, "");
+    }
     const label = info.label || "Palabras";
     const n = (info.trends || []).length;
     if (info.source === "cargando") {

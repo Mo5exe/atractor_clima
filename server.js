@@ -262,7 +262,7 @@ async function refreshTrends() {
   io.emit("trends", trendsInfo);
 }
 
-const WORD_SETTINGS = ["wordSource", "trendsCountry", "customWords", "climateState", "climatePhrases", "climateVoices", "climateWords"];
+const WORD_SETTINGS = ["wordSource", "trendsCountry", "newsSource", "customWords", "climateState", "climatePhrases", "climateVoices", "climateWords"];
 
 // ---------------------------------------------------------------------------
 // Clima

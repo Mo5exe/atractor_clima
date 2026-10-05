@@ -313,7 +313,37 @@
     { id: "mexico", label: "México", geo: "MX", wiki: "es" },
     { id: "chile", label: "Chile", geo: "CL", wiki: "es" },
     { id: "colombia", label: "Colombia", geo: "CO", wiki: "es" },
-    { id: "united-states", label: "Estados Unidos", geo: "US", wiki: "en" }
+    { id: "united-states", label: "Estados Unidos (inglés)", geo: "US", wiki: "en" },
+    { id: "united-kingdom", label: "Reino Unido (inglés)", geo: "GB", wiki: "en" },
+    { id: "germany", label: "Alemania (alemán)", geo: "DE", wiki: "de" },
+    { id: "france", label: "Francia (francés)", geo: "FR", wiki: "fr" },
+    { id: "brazil", label: "Brasil (portugués)", geo: "BR", wiki: "pt" }
+  ];
+
+  // Diarios para "Titulares de diarios" (las palabras que más se repiten en sus titulares).
+  var NEWS_SOURCES = [
+    { id: "ar", label: "Diarios argentinos (Página/12, Clarín, La Nación, Infobae, Perfil)", lang: "es", feeds: [
+      "https://www.pagina12.com.ar/rss/portada",
+      "https://www.clarin.com/rss/lo-ultimo/",
+      "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml",
+      "https://www.infobae.com/feeds/rss/",
+      "https://www.perfil.com/feed"] },
+    { id: "bbc_mundo", label: "BBC Mundo (castellano)", lang: "es", feeds: ["https://feeds.bbci.co.uk/mundo/rss.xml"] },
+    { id: "dw_es", label: "DW Español (castellano)", lang: "es", feeds: ["https://rss.dw.com/rdf/rss-sp-all"] },
+    { id: "elpais", label: "El País (España)", lang: "es", feeds: ["https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada"] },
+    { id: "bbc", label: "BBC News (inglés)", lang: "en", feeds: ["https://feeds.bbci.co.uk/news/rss.xml", "https://feeds.bbci.co.uk/news/world/rss.xml"] },
+    { id: "dw_en", label: "DW — Deutsche Welle (inglés)", lang: "en", feeds: ["https://rss.dw.com/rdf/rss-en-all"] },
+    { id: "guardian", label: "The Guardian (inglés)", lang: "en", feeds: ["https://www.theguardian.com/world/rss", "https://www.theguardian.com/environment/rss"] },
+    { id: "aljazeera", label: "Al Jazeera (inglés)", lang: "en", feeds: ["https://www.aljazeera.com/xml/rss/all.xml"] },
+    { id: "npr", label: "NPR (inglés)", lang: "en", feeds: ["https://feeds.npr.org/1001/rss.xml"] },
+    { id: "dw_de", label: "DW Deutsch (alemán)", lang: "de", feeds: ["https://rss.dw.com/rdf/rss-de-all"] },
+    { id: "spiegel", label: "Der Spiegel (alemán)", lang: "de", feeds: ["https://www.spiegel.de/schlagzeilen/index.rss"] },
+    { id: "lemonde", label: "Le Monde (francés)", lang: "fr", feeds: ["https://www.lemonde.fr/rss/une.xml"] },
+    { id: "world_en", label: "Mezcla internacional en inglés (BBC, DW, Guardian, Al Jazeera)", lang: "en", feeds: [
+      "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "https://rss.dw.com/rdf/rss-en-all",
+      "https://www.theguardian.com/world/rss",
+      "https://www.aljazeera.com/xml/rss/all.xml"] }
   ];
 
   // De dónde salen las palabras de la capa "Palabras".
@@ -321,7 +351,7 @@
     { id: "clima", label: "Palabras del clima", hint: "El estado del clima en vivo, frases populares sobre el clima, tus palabras para cada clima y (opcional) voces de la gente en Mastodon." },
     { id: "custom", label: "Mis palabras (lista propia)", hint: "Las palabras que escribas abajo, separadas por coma o en renglones." },
     { id: "wikipedia", label: "Lo más leído en Wikipedia", hint: "Los artículos más visitados ayer: temas del día, personas, lugares, ideas." },
-    { id: "news", label: "Titulares de diarios", hint: "Las palabras que más se repiten hoy en los titulares de los diarios." },
+    { id: "news", label: "Titulares de diarios", hint: "Las palabras que más se repiten hoy en los titulares del diario que elijas: argentinos, BBC, DW, The Guardian, Le Monde, Der Spiegel…" },
     { id: "google", label: "Búsquedas en Google", hint: "Lo que más se está buscando en Google ahora." },
     { id: "trends", label: "Trending de X (Twitter)", hint: "Los trending topics de X, leídos de trends24.in." }
   ];
@@ -355,6 +385,7 @@
     maxHands: 4,            // cuántas manos detecta la cámara a la vez (1 a 6)
     wordSource: "clima",
     trendsCountry: "argentina",
+    newsSource: "ar",
     customWords: DEFAULT_CUSTOM_WORDS,
 
     // --- Clima ---
@@ -379,7 +410,7 @@
   };
 
   var api = {
-    SCHEMAS: SCHEMAS, NAMES: NAMES, COUNTRIES: COUNTRIES, WORD_SOURCES: WORD_SOURCES,
+    SCHEMAS: SCHEMAS, NAMES: NAMES, COUNTRIES: COUNTRIES, WORD_SOURCES: WORD_SOURCES, NEWS_SOURCES: NEWS_SOURCES,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_CUSTOM_WORDS: DEFAULT_CUSTOM_WORDS,
     DEFAULT_CLIMATE_WORDS: DEFAULT_CLIMATE_WORDS
   };

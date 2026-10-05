@@ -608,3 +608,4 @@ button:disabled {
 .music-meters { min-width: 0; }
 .image-item video { width: 100%; height: 100%; object-fit: contain; }
 .media-badge { position: absolute; left: 3px; bottom: 3px; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(15,17,21,0.85); color: var(--accent); pointer-events: none; }
+#newsRow[hidden], #countryRow[hidden] { display: none; }

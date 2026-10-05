@@ -599,20 +599,41 @@ class TrendingWordsEffect {
     this.waitTimer = 0;
     this.recent = [];
   }
+  // Cada palabra sale una vez por vuelta (como un mazo de cartas mezclado), sin
+  // favorecer a las más populares, y nunca más de 2 veces por minuto.
   pickWord(words) {
     if (!words || words.length === 0) return null;
-    const candidates = words.filter((w) => !this.recent.includes(w.word));
-    const pool = candidates.length > 0 ? candidates : words;
-    const total = pool.reduce((s, w) => s + (w.popularity || 0.1), 0);
-    let r = Math.random() * total;
-    let chosen = pool[pool.length - 1];
-    for (const w of pool) {
-      r -= (w.popularity || 0.1);
-      if (r <= 0) { chosen = w; break; }
+    const now = performance.now() / 1000;
+    if (!this.used) this.used = new Map(); // palabra -> [momentos en que salió]
+    const key = words.map((w) => w.word).join("|");
+    if (this.deckKey !== key) { this.deckKey = key; this.deck = []; }
+    const canUse = (w) => {
+      const times = (this.used.get(w.word) || []).filter((t) => now - t < 60);
+      this.used.set(w.word, times);
+      return times.length < 2;
+    };
+    for (let round = 0; round < 2; round++) {
+      if (!this.deck || this.deck.length === 0) {
+        this.deck = words.slice();
+        for (let i = this.deck.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+        }
+        // Que la primera del mazo nuevo no sea la última que salió.
+        if (this.deck.length > 1 && this.lastWord && this.deck[this.deck.length - 1].word === this.lastWord) {
+          this.deck.unshift(this.deck.pop());
+        }
+      }
+      while (this.deck.length) {
+        const w = this.deck.pop();
+        if (canUse(w)) {
+          this.used.get(w.word).push(now);
+          this.lastWord = w.word;
+          return w;
+        }
+      }
     }
-    this.recent.push(chosen.word);
-    if (this.recent.length > Math.min(8, Math.floor(words.length / 2))) this.recent.shift();
-    return chosen;
+    return null; // todas salieron 2 veces en el último minuto: esperar
   }
   spawn(hand, p, env) {
     const word = this.pickWord(env.words);
