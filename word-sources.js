@@ -134,7 +134,8 @@ const STOPWORDS_EN = new Set((
   "can could should may might must shall than then there here what when where which who whom whose why how all any " +
   "some more most other such only own same so too very just also into over after before about against between " +
   "through during under again further once out up down off new says said say amid over year years day days week " +
-  "weeks first last after video watch live latest update updates news report reports explained analysis how why"
+  "weeks first last after video watch live latest update updates news report reports explained analysis how why " +
+  "inside turns opens makes make takes take gets get finds find look looks behind meet meets back best top"
 ).split(/\s+/));
 
 const STOPWORDS_DE = new Set((
@@ -152,6 +153,11 @@ const STOPWORDS_FR = new Set((
   "tout tous toute toutes nouveau nouvelle nouveaux an ans jour jours fait faire selon direct vidéo"
 ).split(/\s+/));
 
+// En las revistas de arte estas palabras aparecen en casi todo: no aportan.
+const ART_STOPWORDS = new Set(("art arts artist artists artwork artworks exhibition exhibitions show shows museum museums gallery galleries " +
+  "work works new open opens opening review reviews interview design designs designer designers project projects studio " +
+  "arte artista artistas obra obras muestra muestras exposición exposiciones museo museos galería galerías").split(/\s+/));
+
 const STOPWORDS = { es: STOPWORDS_ES, en: STOPWORDS_EN, de: STOPWORDS_DE, fr: STOPWORDS_FR, pt: STOPWORDS_ES };
 
 function headlinesFromRss(xml) {
@@ -162,27 +168,65 @@ function headlinesFromRss(xml) {
   return titles.filter(Boolean);
 }
 
-function keywordsFromHeadlines(headlines, lang) {
+function keywordsFromHeadlines(headlines, lang, art) {
   const stop = STOPWORDS[lang] || STOPWORDS_ES;
   const counts = new Map();
   const display = new Map();
+  const isCap = (t) => /^\p{Lu}/u.test(t);
+  const isStop = (k) => stop.has(k) || (art && ART_STOPWORDS.has(k));
   for (const h of headlines) {
     const seenInThis = new Set();
-    const tokens = h.split(/[^\p{L}\p{N}'’-]+/u).map((t) => t.replace(/['’]s$/i, "").replace(/['’]/g, ""));
-    for (const raw of tokens) {
-      const tok = raw.replace(/^-+|-+$/g, "");
-      if (tok.length < 4) continue;
-      const key = tok.toLowerCase();
-      if (stop.has(key) || STOPWORDS_ES.has(key) && lang === "es" || /^\d+$/.test(key)) continue;
-      if (seenInThis.has(key)) continue;
+    const tokens = h.split(/[^\p{L}\p{N}'’-]+/u)
+      .map((t) => t.replace(/['’]s$/i, "").replace(/['’]/g, "").replace(/^-+|-+$/g, ""))
+      .filter(Boolean);
+    const add = (key, shown) => {
+      if (seenInThis.has(key)) return;
       seenInThis.add(key);
       counts.set(key, (counts.get(key) || 0) + 1);
       // Preferir la forma con mayúscula si aparece (nombres propios).
-      if (!display.has(key) || /^\p{Lu}/u.test(tok)) display.set(key, tok);
+      if (!display.has(key) || isCap(shown)) display.set(key, shown);
+    };
+    // Nombres de 2-3 palabras con mayúscula ("Refik Anadol", "Ars Electronica"),
+    // salvo en titulares escritos Todo Con Mayúscula, donde no se distinguen.
+    const rest = tokens.slice(1);
+    const capRatio = rest.length ? rest.filter(isCap).length / rest.length : 0;
+    const used = new Set();
+    if (capRatio < 0.7) {
+      for (let i = 0; i < tokens.length; i++) {
+        if (!isCap(tokens[i]) || (isStop(tokens[i].toLowerCase()) && !(i + 1 < tokens.length && isCap(tokens[i + 1])))) continue;
+        // La primera palabra del titular sólo cuenta si la sigue otra con mayúscula.
+        if (i === 0 && !(tokens.length > 1 && isCap(tokens[1]))) continue;
+        let j = i;
+        while (j + 1 < tokens.length && j - i < 2 && isCap(tokens[j + 1]) && !isStop(tokens[j + 1].toLowerCase())) j++;
+        // Sacar palabras comunes del principio o del final ("La Bienal" → "Bienal").
+        let a = i, b = j;
+        while (a < b && isStop(tokens[a].toLowerCase())) a++;
+        while (b > a && isStop(tokens[b].toLowerCase())) b--;
+        if (b > a) {
+          const phrase = tokens.slice(a, b + 1).join(" ");
+          add(phrase.toLowerCase(), phrase);
+          for (let k = a; k <= b; k++) used.add(k);
+        }
+        i = j;
+      }
     }
+    tokens.forEach((tok, idx) => {
+      if (used.has(idx) || tok.length < 4) return;
+      const key = tok.toLowerCase();
+      if (isStop(key) || /^\d+$/.test(key)) return;
+      add(key, tok);
+    });
   }
-  const list = Array.from(counts.entries())
-    .filter(([, c]) => c >= 2)
+  // En fuentes chicas (como las revistas de arte) casi nada se repite: si con
+  // "al menos 2 veces" quedan pocas, se suman las que aparecen una vez,
+  // primero las que empiezan con mayúscula (nombres de artistas, obras, lugares).
+  let entries = Array.from(counts.entries()).filter(([, c]) => c >= 2);
+  if (entries.length < 15) {
+    const singles = Array.from(counts.entries()).filter(([, c]) => c === 1)
+      .sort((a, b) => (/^\p{Lu}/u.test(display.get(b[0])) ? 1 : 0) - (/^\p{Lu}/u.test(display.get(a[0])) ? 1 : 0));
+    entries = entries.concat(singles.slice(0, 30 - entries.length));
+  }
+  const list = entries
     .sort((a, b) => b[1] - a[1])
     .slice(0, 30)
     .map(([key, count]) => {
@@ -203,7 +247,7 @@ async function newsWords(newsSource) {
     else console.warn("[palabras] diario no disponible: " + feeds[i] + " (" + r.reason.message + ")");
   });
   if (ok === 0) throw new Error("ningún diario respondió");
-  return keywordsFromHeadlines(headlines, src.lang);
+  return keywordsFromHeadlines(headlines, src.lang, !!src.art);
 }
 
 // --------------------------------------------------------------- general

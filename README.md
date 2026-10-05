@@ -134,6 +134,15 @@ Fuente **"Palabras del clima"** (por defecto), que mezcla:
 
 También están las otras fuentes: lista propia, Wikipedia, titulares de diarios, Google, X.
 
+En **"Titulares de diarios"** se elige el diario: argentinos, BBC, Deutsche Welle, The
+Guardian, Al Jazeera, NPR, Spiegel, Le Monde… y tres de **arte**:
+- **Arte digital y nuevos medios**: Creative Applications, Colossal, Designboom, Dezeen (inglés).
+- **Arte contemporáneo**: Hyperallergic, ARTnews, Artnet, Colossal (inglés).
+- **Arte y cultura**: Página/12, Clarín, Revista Ñ, El País (castellano).
+
+En las fuentes de arte los nombres de artistas, lugares y obras quedan juntos
+("Marta Minujín", "Refik Anadol", "Venice Biennale") y se sacan palabras obvias como "arte" o "muestra".
+
 ## Multitouch
 
 - **Cámara**: detecta hasta 6 manos a la vez (por defecto 4, se elige en el panel, tarjeta

@@ -339,6 +339,21 @@
     { id: "dw_de", label: "DW Deutsch (alemán)", lang: "de", feeds: ["https://rss.dw.com/rdf/rss-de-all"] },
     { id: "spiegel", label: "Der Spiegel (alemán)", lang: "de", feeds: ["https://www.spiegel.de/schlagzeilen/index.rss"] },
     { id: "lemonde", label: "Le Monde (francés)", lang: "fr", feeds: ["https://www.lemonde.fr/rss/une.xml"] },
+    { id: "arte_digital", label: "Arte digital y nuevos medios (Creative Applications, Colossal, Designboom, Dezeen — inglés)", lang: "en", art: true, feeds: [
+      "https://www.creativeapplications.net/feed/",
+      "https://www.thisiscolossal.com/feed/",
+      "https://www.designboom.com/feed/",
+      "https://www.dezeen.com/feed/"] },
+    { id: "arte_en", label: "Arte contemporáneo (Hyperallergic, ARTnews, Artnet, Colossal — inglés)", lang: "en", art: true, feeds: [
+      "https://hyperallergic.com/feed/",
+      "https://www.artnews.com/feed/",
+      "https://news.artnet.com/feed",
+      "https://www.thisiscolossal.com/feed/"] },
+    { id: "arte_es", label: "Arte y cultura (Página/12, Clarín, Revista Ñ, El País — castellano)", lang: "es", art: true, feeds: [
+      "https://www.pagina12.com.ar/rss/secciones/cultura/notas",
+      "https://www.clarin.com/rss/cultura/",
+      "https://www.clarin.com/rss/revista-enie/",
+      "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/cultura/portada"] },
     { id: "world_en", label: "Mezcla internacional en inglés (BBC, DW, Guardian, Al Jazeera)", lang: "en", feeds: [
       "https://feeds.bbci.co.uk/news/world/rss.xml",
       "https://rss.dw.com/rdf/rss-en-all",
