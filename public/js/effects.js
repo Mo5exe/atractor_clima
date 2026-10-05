@@ -1244,6 +1244,248 @@ class ImagesEffect {
 }
 
 // ---------------------------------------------------------------------------
+// 13) GLITCH — un filtro: distorsiona lo que YA dibujaron las capas de arriba
+//     en la lista (conviene ponerla última). Zona: toda la pantalla, un
+//     rectángulo en el punto de origen, o alrededor de la mano.
+// ---------------------------------------------------------------------------
+class GlitchEffect {
+  constructor() {
+    this.burstLeft = 0;
+    this.lastRoll = -1;
+    this.pattern = null;
+    this.buf = document.createElement("canvas");
+    this.bufR = document.createElement("canvas");
+    this.bufGB = document.createElement("canvas");
+    this.wasTouching = false;
+  }
+  update(dt, t, w, h, p, env) {
+    this.t = t;
+    const hands = (env && env.hands) || [];
+    const touching = hands.length > 0;
+    const c = env.climate != null ? env.climate : 1;
+    const wx = weatherOf(env);
+    // Tormenta y ráfagas de viento: más glitch.
+    this.climateBoost = 1 + c * (wx.gustNorm * 0.8 + wx.windNorm * 0.4 + wx.rainNorm * 0.5);
+    if (p.timing === "always") this.active = true;
+    else if (p.timing === "touch") {
+      if (touching) this.burstLeft = Math.max(this.burstLeft, p.burstLength);
+      this.burstLeft -= dt;
+      this.active = touching || this.burstLeft > 0;
+    } else {
+      this.burstLeft -= dt;
+      const rate = p.frequency * this.climateBoost;
+      if (this.burstLeft <= 0 && Math.random() < rate * dt) this.burstLeft = p.burstLength * (0.5 + Math.random());
+      this.active = this.burstLeft > 0;
+    }
+    this.handBoost = touching ? 1 + (env.strength || 0) * 0.8 : 1;
+    this.wasTouching = touching;
+  }
+  region(ctx, w, h, p, env) {
+    const m = ctx.getTransform();
+    if (p.area === "full") return { x: 0, y: 0, w: ctx.canvas.width, h: ctx.canvas.height };
+    let cx, cy;
+    if (p.area === "hand") {
+      const hand = env && env.hands && env.hands[0];
+      if (!hand) return null;
+      const pt = new DOMPoint(hand.x, hand.y).matrixTransform(m);
+      cx = pt.x; cy = pt.y;
+    } else {
+      const pt = new DOMPoint(w / 2, h / 2).matrixTransform(m); // el punto de origen de la capa
+      cx = pt.x; cy = pt.y;
+    }
+    const rw = (p.width / 100) * ctx.canvas.width;
+    const rh = (p.height / 100) * ctx.canvas.height;
+    const x = Math.max(0, Math.round(cx - rw / 2));
+    const y = Math.max(0, Math.round(cy - rh / 2));
+    return { x, y, w: Math.min(ctx.canvas.width - x, Math.round(rw)), h: Math.min(ctx.canvas.height - y, Math.round(rh)), cx, cy, part: true };
+  }
+  // Forma de la zona: el rectángulo (con bordes un poco movidos) más ramitas
+  // ortogonales que salen de sus lados, algunas con un quiebre en L.
+  shape(r, p, W, H) {
+    if (!r.part) return [r];
+    const rects = [];
+    const j = () => (Math.random() - 0.5) * Math.min(r.w, r.h) * 0.08;
+    rects.push({ x: r.x + j(), y: r.y + j(), w: r.w + j(), h: r.h + j() });
+    const n = Math.round(p.branches != null ? p.branches : 6);
+    const L = p.branchLength != null ? p.branchLength : 0.8;
+    for (let i = 0; i < n; i++) {
+      const side = Math.floor(Math.random() * 4); // 0 arriba, 1 derecha, 2 abajo, 3 izquierda
+      const thick = 3 + Math.random() * Math.min(r.w, r.h) * 0.12;
+      const len = (0.2 + Math.random()) * Math.max(r.w, r.h) * L;
+      let b;
+      if (side === 0) { const x = r.x + Math.random() * (r.w - thick); b = { x, y: r.y - len, w: thick, h: len }; }
+      else if (side === 2) { const x = r.x + Math.random() * (r.w - thick); b = { x, y: r.y + r.h, w: thick, h: len }; }
+      else if (side === 1) { const y = r.y + Math.random() * (r.h - thick); b = { x: r.x + r.w, y, w: len, h: thick }; }
+      else { const y = r.y + Math.random() * (r.h - thick); b = { x: r.x - len, y, w: len, h: thick }; }
+      rects.push(b);
+      // A veces la ramita dobla en ángulo recto.
+      if (Math.random() < 0.45) {
+        const len2 = len * (0.3 + Math.random() * 0.6);
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        if (side === 0 || side === 2) {
+          const ey = side === 0 ? b.y : b.y + b.h - thick;
+          rects.push({ x: dir > 0 ? b.x : b.x - len2 + thick, y: ey, w: len2, h: thick });
+        } else {
+          const ex = side === 1 ? b.x + b.w - thick : b.x;
+          rects.push({ x: ex, y: dir > 0 ? b.y : b.y - len2 + thick, w: thick, h: len2 });
+        }
+      }
+    }
+    // Recortar a la pantalla.
+    return rects.map((q) => {
+      const x = Math.max(0, Math.round(q.x)), y = Math.max(0, Math.round(q.y));
+      return { x, y, w: Math.round(Math.min(W, q.x + q.w) - x), h: Math.round(Math.min(H, q.y + q.h) - y) };
+    }).filter((q) => q.w > 1 && q.h > 1);
+  }
+  roll(r, p, amount) {
+    // Un "cuadro" de glitch nuevo (cambia "Velocidad" veces por segundo).
+    const v = p.variant || "mixed";
+    const pick = (name) => v === name || (v === "mixed" && Math.random() < 0.55);
+    const pat = { slices: [], blocks: [], noise: [], rgb: 0, invert: [], scan: false };
+    if (pick("slices")) {
+      const n = 2 + Math.floor(Math.random() * 10 * amount);
+      for (let i = 0; i < n; i++) {
+        const sh = Math.max(2, Math.random() * r.h * 0.12 * (0.3 + amount));
+        pat.slices.push({ y: r.y + Math.random() * (r.h - sh), h: sh, dx: (Math.random() * 2 - 1) * r.w * 0.12 * amount });
+      }
+    }
+    if (pick("rgb")) pat.rgb = (4 + Math.random() * 26) * amount * (Math.random() < 0.5 ? -1 : 1);
+    if (pick("blocks")) {
+      const n = 1 + Math.floor(Math.random() * 8 * amount);
+      for (let i = 0; i < n; i++) {
+        const bw = 10 + Math.random() * r.w * 0.25, bh = 6 + Math.random() * r.h * 0.18;
+        pat.blocks.push({
+          sx: r.x + Math.random() * (r.w - bw), sy: r.y + Math.random() * (r.h - bh),
+          dx: r.x + Math.random() * (r.w - bw), dy: r.y + Math.random() * (r.h - bh),
+          w: bw, h: bh, tint: Math.random() < 0.45 ? (Math.random() < 0.5 ? 1 : 2) : 0
+        });
+      }
+    }
+    if (pick("noise")) {
+      const n = Math.floor(40 + 400 * amount);
+      for (let i = 0; i < n; i++) {
+        pat.noise.push({ x: r.x + Math.random() * r.w, y: r.y + Math.random() * r.h, w: 1 + Math.random() * 6, h: 1 + Math.random() * 3, c: Math.random() });
+      }
+    }
+    if (pick("invert") && (v === "invert" || Math.random() < 0.35)) {
+      const n = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) {
+        const iw = r.w * (0.1 + Math.random() * 0.6), ih = r.h * (0.04 + Math.random() * 0.3);
+        pat.invert.push({ x: r.x + Math.random() * (r.w - iw), y: r.y + Math.random() * (r.h - ih), w: iw, h: ih });
+      }
+    }
+    pat.scan = pick("scanlines");
+    return pat;
+  }
+  draw(ctx, w, h, p, env) {
+    if (!this.active) return;
+    let r = this.region(ctx, w, h, p, env);
+    if (!r || r.w < 4 || r.h < 4) return;
+    const amount = Math.min(1, p.intensity * this.climateBoost * this.handBoost);
+    const canvas = ctx.canvas;
+    if (this.lastRoll < 0 || this.t - this.lastRoll >= 1 / Math.max(1, p.speed) || !this.pattern) {
+      // Nueva forma (con ramitas) y nuevo patrón de glitch dentro de ella.
+      this.rects = this.shape(r, p, canvas.width, canvas.height);
+      if (!this.rects.length) return;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of this.rects) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x + q.w); y1 = Math.max(y1, q.y + q.h); }
+      this.box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      this.pattern = this.roll(this.box, p, amount);
+      this.lastRoll = this.t;
+    }
+    const pat = this.pattern;
+    // Si la zona se mueve (mano), la forma acompaña sin esperar al próximo cambio.
+    const box0 = this.box;
+    const ox = r.part ? Math.round(r.x - (this.anchorX != null ? this.anchorX : r.x)) : 0;
+    const oy = r.part ? Math.round(r.y - (this.anchorY != null ? this.anchorY : r.y)) : 0;
+    if (this.lastRoll === this.t) { this.anchorX = r.x; this.anchorY = r.y; }
+    r = { x: box0.x + ox, y: box0.y + oy, w: box0.w, h: box0.h };
+    if (r.w < 4 || r.h < 4) return;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.translate(ox, oy);
+    ctx.beginPath();
+    for (const q of this.rects) ctx.rect(q.x, q.y, q.w, q.h);
+    ctx.clip();
+    ctx.translate(-ox, -oy);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.filter = "none";
+
+    // Copia de la zona antes de tocarla.
+    const buf = this.buf;
+    if (buf.width !== r.w || buf.height !== r.h) { buf.width = r.w; buf.height = r.h; }
+    const bctx = buf.getContext("2d");
+    bctx.clearRect(0, 0, r.w, r.h);
+    bctx.drawImage(canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+
+    // Separación RGB: rojo corrido para un lado, verde+azul para el otro.
+    if (pat.rgb) {
+      for (const [b, col] of [[this.bufR, "#ff0000"], [this.bufGB, "#00ffff"]]) {
+        if (b.width !== r.w || b.height !== r.h) { b.width = r.w; b.height = r.h; }
+        const x = b.getContext("2d");
+        x.globalCompositeOperation = "source-over";
+        x.drawImage(buf, 0, 0);
+        x.globalCompositeOperation = "multiply";
+        x.fillStyle = col;
+        x.fillRect(0, 0, r.w, r.h);
+        x.globalCompositeOperation = "destination-in";
+        x.drawImage(buf, 0, 0);
+      }
+      ctx.fillStyle = "#000";
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.drawImage(this.bufR, r.x + pat.rgb, r.y);
+      ctx.drawImage(this.bufGB, r.x - pat.rgb, r.y + pat.rgb * 0.15);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    // Cortes: tiras horizontales corridas.
+    for (const sl of pat.slices) {
+      const sy = Math.round(sl.y - r.y);
+      ctx.drawImage(buf, 0, sy, r.w, sl.h, r.x + sl.dx, sl.y, r.w, sl.h);
+    }
+    // Bloques: pedazos copiados de otro lado, algunos teñidos.
+    for (const b of pat.blocks) {
+      ctx.drawImage(buf, b.sx - r.x, b.sy - r.y, b.w, b.h, b.dx, b.dy, b.w, b.h);
+      if (b.tint) {
+        ctx.globalAlpha = 0.35 + 0.4 * amount;
+        ctx.fillStyle = climateColor(b.tint === 1 ? p.color : p.color2, env);
+        ctx.fillRect(b.dx, b.dy, b.w, b.h);
+        ctx.globalAlpha = 1;
+      }
+    }
+    // Inversión de color.
+    if (pat.invert.length) {
+      ctx.globalCompositeOperation = "difference";
+      ctx.fillStyle = "#ffffff";
+      for (const iv of pat.invert) ctx.fillRect(iv.x, iv.y, iv.w, iv.h);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    // Ruido digital.
+    if (pat.noise.length) {
+      const c1 = climateColor(p.color, env), c2 = climateColor(p.color2, env);
+      for (const n of pat.noise) {
+        ctx.fillStyle = n.c < 0.6 ? "rgba(255,255,255,0.85)" : n.c < 0.8 ? c1 : c2;
+        ctx.fillRect(n.x, n.y, n.w, n.h);
+      }
+    }
+    // Líneas de TV + una franja brillante que baja.
+    if (pat.scan) {
+      ctx.fillStyle = "rgba(0,0,0," + (0.18 + 0.3 * amount) + ")";
+      for (let y = r.y; y < r.y + r.h; y += 3) ctx.fillRect(r.x, y, r.w, 1);
+      const band = r.y + ((this.t * 220) % (r.h + 80)) - 40;
+      const g = ctx.createLinearGradient(0, band - 40, 0, band + 40);
+      g.addColorStop(0, "rgba(255,255,255,0)");
+      g.addColorStop(0.5, "rgba(255,255,255," + (0.08 + 0.12 * amount) + ")");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(r.x, band - 40, r.w, 80);
+    }
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Fábrica de efectos por tipo
 // ---------------------------------------------------------------------------
 const EffectFactories = {
@@ -1257,6 +1499,7 @@ const EffectFactories = {
   clouds: () => new CloudsEffect(),
   pixels: () => new PixelsEffect(),
   images: () => new ImagesEffect(),
+  glitch: () => new GlitchEffect(),
   stripesV: () => new StripesEffect(true),
   stripesH: () => new StripesEffect(false)
 };

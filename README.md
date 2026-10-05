@@ -43,7 +43,7 @@ Para bajar una versión nueva: **`actualizar.bat`** (no borra presets ni imágen
 Partículas · Árbol Fractal · Flow Field · Fuego · Agua (banda espejada o hasta el borde) ·
 **Palabras** · **Lluvia** (líneas diagonales) · **Nubes** · **Píxeles** (de un color, de
 todos los colores, tonos o según la temperatura) · **Rayas verticales** · **Rayas
-horizontales** · **Imágenes** (PNG con transparencia).
+horizontales** · **Imágenes** (PNG con transparencia) · **Glitch**.
 
 Todas tienen sliders propios, punto de origen, rotación, activar/desactivar, subir/bajar,
 "Atracción a la mano" e "Influencia del clima".
@@ -56,6 +56,15 @@ Subí PNG con fondo transparente (también JPG, GIF, WebP) desde la tarjeta de l
   translúcida y sale volando.
 - **Siempre visibles**: flotan alrededor del punto de origen; la mano las atrae y el
   viento las hamaca.
+
+### Glitch
+
+Un filtro que distorsiona lo que dibujan las capas que están arriba en la lista (ponela
+última para que afecte a todo). Variantes: cortes, separación RGB, bloques, líneas de TV,
+ruido, inversión, o todas mezcladas. Zona: toda la pantalla, una parte (centrada en el
+punto de origen) o alrededor de la mano; en las dos últimas la zona tiene ramitas
+ortogonales que cambian todo el tiempo. Cuándo: por ráfagas, siempre, o al tocar. El
+viento fuerte y la tormenta lo intensifican.
 
 ### Palabras
 

@@ -119,7 +119,8 @@ const VOICE_TAGS = {
   humedo: ["humedad"], nublado: ["clima"], despejado: ["clima"], niebla: ["niebla"], nieve: ["nieve"],
   templado: ["clima"], fresco: ["clima"]
 };
-const INSTANCES = ["https://mastodon.social", "https://masto.es"];
+// Servidores de Mastodon con mucha gente que escribe en castellano.
+const INSTANCES = ["https://mastodon.social", "https://masto.es", "https://tkz.one", "https://mstdn.social"];
 const WEATHER_WORDS = /(lluv|llov|llue|garú|garu|tormenta|calor|frí|frio|helad|viento|ráfag|rafag|humedad|húmed|nubl|nube|sol\b|niebla|nieve|nieva|clima|tiempo|temperatura|grados|°|paraguas|charco|trueno|rayo|relámp)/i;
 
 // Filtro básico: lo que se proyecta en una pared tiene que poder verlo cualquiera.
@@ -146,13 +147,14 @@ function cleanPost(html) {
     .replace(/#(\w+)/g, "$1");
 }
 
-function fragmentsFrom(text) {
+// Frases cortas del posteo. strict = sólo las que nombran el clima.
+function fragmentsFrom(text, strict = true) {
   return text
-    .split(/[.!?¡¿\n…;:]+/)
+    .split(/[.!?¡¿\n…;:,]+/)
     .map((s) => s.replace(/\s+/g, " ").replace(/^[\s,–—-]+|[\s,–—-]+$/g, "").trim())
     .filter((s) => {
       const n = s.split(" ").length;
-      return n >= 2 && n <= 7 && s.length <= 48 && WEATHER_WORDS.test(s) && !BAD.test(s) && !/\d{4,}/.test(s);
+      return n >= 2 && n <= 7 && s.length <= 48 && (!strict || WEATHER_WORDS.test(s)) && !BAD.test(s) && !/\d{4,}/.test(s) && !/[<>{}]/.test(s);
     });
 }
 
@@ -169,24 +171,31 @@ async function fetchVoices(cats) {
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })));
 
   const seen = new Set();
-  const list = [];
+  const strict = [];
+  const loose = [];
   let ok = 0;
+  const add = (arr, f) => {
+    const k = f.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    arr.push({ word: f.charAt(0).toUpperCase() + f.slice(1), popularity: 0.75, kind: "voz" });
+  };
   results.forEach((r) => {
     if (r.status !== "fulfilled" || !Array.isArray(r.value)) return;
     ok++;
     r.value.forEach((post) => {
-      if (post.language && post.language !== "es") return;
+      if (post.language && !String(post.language).toLowerCase().startsWith("es")) return;
       if (post.sensitive || post.spoiler_text) return;
-      fragmentsFrom(cleanPost(post.content)).forEach((f) => {
-        const k = f.toLowerCase();
-        if (seen.has(k)) return;
-        seen.add(k);
-        list.push({ word: f.charAt(0).toUpperCase() + f.slice(1), popularity: 0.75, kind: "voz" });
-      });
+      const text = cleanPost(post.content);
+      if (BAD.test(text)) return; // si el posteo tiene malas palabras, se descarta entero
+      fragmentsFrom(text, true).forEach((f) => add(strict, f));
+      fragmentsFrom(text, false).forEach((f) => add(loose, f));
     });
   });
   if (ok === 0) throw new Error("Mastodon no respondió");
-  const picked = list.slice(0, 20);
+  // Primero las frases que nombran el clima; si son pocas, completar con otras
+  // frases cortas de esos mismos posteos (todos vienen de hashtags del clima).
+  const picked = strict.slice(0, 20).concat(strict.length < 10 ? loose.slice(0, 10 - strict.length) : []);
   voiceCache.at = Date.now();
   voiceCache.key = key;
   voiceCache.list = picked;

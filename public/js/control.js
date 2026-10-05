@@ -164,10 +164,11 @@
         (info.source === "cache" ? " (guardadas)" : "");
     }
     list.innerHTML = "";
-    (info.trends || []).slice(0, 20).forEach((t) => {
+    (info.trends || []).slice().sort((a, b) => (b.kind === "voz") - (a.kind === "voz")).slice(0, 28).forEach((t) => {
       const chip = document.createElement("span");
-      chip.className = "chip";
-      chip.textContent = t.word;
+      chip.className = "chip" + (t.kind === "voz" ? " chip-voz" : "");
+      chip.textContent = t.kind === "voz" ? "«" + t.word + "»" : t.word;
+      if (t.kind === "voz") chip.title = "Voz de la gente (Mastodon)";
       chip.style.fontSize = (11 + t.popularity * 6).toFixed(1) + "px";
       chip.style.opacity = (0.55 + t.popularity * 0.45).toFixed(2);
       list.appendChild(chip);
@@ -345,6 +346,7 @@
       rain: "La cantidad de gotas sigue a la lluvia real (o a la del modo manual). Con “Influencia del clima” en 0, siempre llueve con las “Gotas sin lluvia real”.",
       clouds: "La cantidad de nubes sigue a la nubosidad y la humedad; el viento las arrastra.",
       images: "Subí PNG con fondo transparente. “Al tocar”: aparece una imagen donde toca la mano (o el clic), se queda y sale volando. “Siempre visibles”: flotan en el centro (movelo con el punto de origen), la mano las atrae y el viento las hamaca.",
+      glitch: "El glitch distorsiona lo que dibujan las capas que están ARRIBA de ésta en la lista: ponela última (con ▼) para que afecte a todo. “Una parte” usa el punto de origen como centro del rectángulo. Con viento fuerte o tormenta el glitch aumenta.",
       pixels: "Los píxeles salen del Origen X/Y y se expanden por la pantalla. El viento los arrastra y la mano los atrae.",
       stripesV: "Cada raya engorda y adelgaza a su ritmo y se mueve hacia un costado u otro, cambiando de rumbo al azar. El viento las empuja; la mano las atrae y las engorda.",
       stripesH: "Cada raya engorda y adelgaza a su ritmo y se mueve hacia arriba o abajo, cambiando de rumbo al azar. El viento las empuja; la mano las atrae y las engorda."

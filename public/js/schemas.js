@@ -162,6 +162,39 @@
       ATTRACT,
       CLIMATE
     ],
+    glitch: [
+      { key: "variant", label: "Variante", type: "select", default: "mixed", options: [
+        { value: "mixed", label: "Todas mezcladas" },
+        { value: "slices", label: "Cortes desplazados" },
+        { value: "rgb", label: "Separación RGB" },
+        { value: "blocks", label: "Bloques" },
+        { value: "scanlines", label: "Líneas de TV" },
+        { value: "noise", label: "Ruido digital" },
+        { value: "invert", label: "Inversión de color" }
+      ] },
+      { key: "area", label: "Zona", type: "select", default: "full", options: [
+        { value: "full", label: "Toda la pantalla" },
+        { value: "part", label: "Una parte (rectángulo en el punto de origen)" },
+        { value: "hand", label: "Alrededor de la mano" }
+      ] },
+      { key: "timing", label: "Cuándo", type: "select", default: "bursts", options: [
+        { value: "bursts", label: "Por ráfagas al azar" },
+        { value: "always", label: "Siempre" },
+        { value: "touch", label: "Sólo al tocar (mano o clic)" }
+      ] },
+      { key: "intensity", label: "Intensidad", type: "range", min: 0.05, max: 1, step: 0.05, default: 0.5 },
+      { key: "width", label: "Ancho de la zona (%)", type: "range", min: 5, max: 100, step: 1, default: 40 },
+      { key: "height", label: "Alto de la zona (%)", type: "range", min: 5, max: 100, step: 1, default: 30 },
+      { key: "branches", label: "Ramitas ortogonales (en “una parte” / “mano”)", type: "range", min: 0, max: 16, step: 1, default: 6 },
+      { key: "branchLength", label: "Largo de las ramitas", type: "range", min: 0.1, max: 2, step: 0.05, default: 0.8 },
+      { key: "frequency", label: "Ráfagas por segundo", type: "range", min: 0.05, max: 5, step: 0.05, default: 0.7 },
+      { key: "burstLength", label: "Duración de cada ráfaga (s)", type: "range", min: 0.05, max: 3, step: 0.05, default: 0.35 },
+      { key: "speed", label: "Velocidad del glitch (cambios por segundo)", type: "range", min: 1, max: 60, step: 1, default: 18 },
+      { key: "color", label: "Color de bloques", type: "color", default: "#ff3d8b" },
+      { key: "color2", label: "Segundo color", type: "color", default: "#5cc8ff" },
+      ATTRACT,
+      CLIMATE
+    ],
     stripesV: [
       { key: "count", label: "Cantidad de rayas", type: "range", min: 1, max: 80, step: 1, default: 14 },
       { key: "minWidth", label: "Grosor mínimo", type: "range", min: 0.5, max: 200, step: 0.5, default: 2 },
@@ -215,6 +248,7 @@
     clouds: "Nubes",
     pixels: "Píxeles",
     images: "Imágenes",
+    glitch: "Glitch",
     stripesV: "Rayas verticales",
     stripesH: "Rayas horizontales"
   };
