@@ -21,6 +21,7 @@ const { getWords } = require("./word-sources.js");
 const { getRealWeather, manualWeather, searchCity, categories } = require("./weather.js");
 const { getClimateWords } = require("./climate-words.js");
 const auth = require("./auth.js");
+const playersMod = require("./players.js");
 
 // Carpeta de datos (presets, imágenes, animaciones). En Render se puede apuntar a
 // un disco permanente con la variable DATA_DIR; si no, queda en ./data.
@@ -367,8 +368,11 @@ setInterval(refreshTrends, 3 * 60 * 1000);
 // ¿Los archivos sobreviven a un reinicio? En Render gratis, no (salvo con disco).
 const PERSISTENT = !ON_RENDER || !!process.env.DATA_DIR;
 
+const multiplayer = playersMod.setup(app, io, () => state.settings);
+
 io.on("connection", (socket) => {
   auth.guardSocket(socket);
+  multiplayer.onSocket(socket);
   socket.emit("server-info", {
     onRender: ON_RENDER,
     persistent: PERSISTENT,
@@ -457,8 +461,10 @@ io.on("connection", (socket) => {
       if (key === "city" && (!isFinite(value.lat) || !isFinite(value.lon))) return;
       value = key === "manualWeather" ? Object.assign({}, state.settings.manualWeather, value) : value;
     }
+    if (key === "maxPlayers") value = Math.max(1, Math.min(30, Math.round(Number(value) || 12)));
     state.settings[key] = (key === "customWords" || key === "climateWords") ? String(value).slice(0, 5000) : value;
     broadcastState();
+    multiplayer.onSettingChanged(key);
     if (WEATHER_SETTINGS.includes(key)) refreshWeather();
     if (changedWords) {
       if (key !== "customWords") {

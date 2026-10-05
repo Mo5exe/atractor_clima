@@ -35,6 +35,21 @@
       z-index: 5;
     }
     #audioGate[hidden] { display: none; }
+    #qrBox {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      padding: 10px 10px 8px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      color: #e8ecf4;
+      font: 13px "Segoe UI", Roboto, Arial, sans-serif;
+      text-align: center;
+      pointer-events: none;
+      z-index: 4;
+    }
+    #qrBox[hidden] { display: none; }
+    #qrBox img { display: block; width: 140px; height: 140px; margin: 0 auto 6px; border-radius: 4px; background: #fff; }
     #hint {
       position: fixed;
       left: 50%;
@@ -56,6 +71,7 @@
     - Clic sostenido + mover el mouse: simula la mano (para probar sin cámara).
   -->
   <canvas id="canvas"></canvas>
+  <div id="qrBox" hidden><img id="qrImg" alt="Código QR para sumarse" />📱 Sumate con tu celular</div>
   <div id="hint">Todavía no hay capas.<br>Agregalas desde el panel de control.<br><br>Doble clic: pantalla completa · Clic y arrastrar: simular la mano</div>
 
   <script src="/socket.io/socket.io.js"></script>

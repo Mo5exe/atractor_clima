@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0b0d12" />
+  <title>Atractor — Sumate</title>
+  <style>
+    :root { --c: #5cc8ff; --bg: #0b0d12; --panel: #151922; --border: #2a2f3a; --text: #e8ecf4; --muted: #8b93a7; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font: 15px "Segoe UI", Roboto, Arial, sans-serif; overscroll-behavior: none; }
+    body { display: flex; flex-direction: column; }
+    header { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel); border-bottom: 1px solid var(--border); }
+    .who { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); flex: none; }
+    .row { display: flex; gap: 8px; }
+    input { flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; font-size: 16px; }
+    input:focus { outline: none; border-color: var(--c); }
+    button { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; font-size: 15px; white-space: nowrap; }
+    button.on { border-color: var(--c); color: var(--c); }
+    #pad { flex: 1; position: relative; touch-action: none; overflow: hidden;
+      background: radial-gradient(circle at 50% 50%, #161b26 0, var(--bg) 70%); }
+    #pad .help { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 24px; color: var(--muted); line-height: 1.6; pointer-events: none; }
+    #finger { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+      border: 3px solid var(--c); box-shadow: 0 0 22px var(--c); pointer-events: none; display: none; }
+    #cam { position: absolute; right: 10px; bottom: 10px; width: 120px; border-radius: 8px; border: 1px solid var(--border); display: none; }
+    #msg { font-size: 13px; color: var(--muted); min-height: 1.2em; margin: 0; }
+    #msg.err { color: #ff6b6b; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="who"><span class="dot"></span><span id="who">Conectando…</span></div>
+    <div class="row" id="wordRow">
+      <input id="word" maxlength="24" placeholder="Tu palabra (opcional)" autocomplete="off" enterkeyhint="done" />
+      <button id="camBtn" title="Usar la cámara del celular">📷 Cámara</button>
+    </div>
+    <p id="msg"></p>
+  </header>
+  <div id="pad">
+    <div class="help" id="help">Tocá y mové el dedo acá.<br>Tu dedo es una mano en la proyección.<br>Si escribiste una palabra, aparece donde tocás.</div>
+    <div id="finger"></div>
+    <canvas id="cam" width="320" height="240"></canvas>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="js/mano.js"></script>
+</body>
+</html>

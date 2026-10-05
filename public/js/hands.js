@@ -87,6 +87,7 @@ export class HandTracker {
     this.getMirror = opts.getMirror || (() => true);
     this.getPoint = opts.getPoint || (() => "palm");
     this.getMaxHands = opts.getMaxHands || (() => 4);
+    this.facingMode = opts.facingMode || null; // "user" = cámara de adelante del celular
     this.numHands = 0;
     this.nextId = 1;
     this.video = document.createElement("video");
@@ -111,7 +112,7 @@ export class HandTracker {
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: deviceId
           ? { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
-          : { width: { ideal: 640 }, height: { ideal: 480 } },
+          : Object.assign({ width: { ideal: 640 }, height: { ideal: 480 } }, this.facingMode ? { facingMode: this.facingMode } : {}),
         audio: false
       });
     } catch (err) {

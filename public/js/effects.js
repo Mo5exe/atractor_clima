@@ -636,7 +636,8 @@ class TrendingWordsEffect {
     return null; // todas salieron 2 veces en el último minuto: esperar
   }
   spawn(hand, p, env) {
-    const word = this.pickWord(env.words);
+    // Un jugador con celular que escribió su palabra: sale la suya.
+    const word = hand && hand.word ? { word: hand.word, popularity: 0.7 } : this.pickWord(env.words);
     if (!word) return;
     const popularity = word.popularity || 0.5;
     const size = p.size * ((1 - p.popularityScale) + p.popularityScale * (0.35 + 0.65 * popularity));

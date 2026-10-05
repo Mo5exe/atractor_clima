@@ -143,6 +143,20 @@ Guardian, Al Jazeera, NPR, Spiegel, Le Monde… y tres de **arte**:
 En las fuentes de arte los nombres de artistas, lugares y obras quedan juntos
 ("Marta Minujín", "Refik Anadol", "Venice Biennale") y se sacan palabras obvias como "arte" o "muestra".
 
+## Multijugador (con el celular)
+
+- En el panel, tarjeta **📱 Multijugador**, hay un **código QR**. Cada persona lo escanea
+  con su celular y entra a una página donde:
+  - **su dedo** es una mano más en la proyección, con un color y un número propios;
+  - puede escribir **su palabra**, que aparece donde toca (con filtro de malas palabras);
+  - con **📷 Cámara** usa la cámara de adelante del celu: su mano mueve su "mano" en la
+    proyección (sólo con https, o sea en Render).
+- **Mostrar el QR en la salida**: pone el QR en un rincón de la proyección.
+- Se puede apagar, limitar la cantidad de jugadores (hasta 30) o no dejar escribir palabras.
+- En la compu (run.bat), los celulares tienen que estar en el **mismo wifi**. Si Windows
+  pregunta por el firewall la primera vez, dale **Permitir** en redes privadas.
+- En Render entran desde cualquier lugar con internet.
+
 ## Multitouch
 
 - **Cámara**: detecta hasta 6 manos a la vez (por defecto 4, se elige en el panel, tarjeta

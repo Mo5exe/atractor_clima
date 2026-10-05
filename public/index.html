@@ -192,6 +192,26 @@
         </div>
 
         <div class="card">
+          <div class="card-title">📱 Multijugador</div>
+          <p class="muted small">Cada persona escanea el QR con el celular: su dedo (o su mano, con la cámara del celu) es una mano más en la proyección, con su color. Si escribe una palabra, aparece donde toca.</p>
+          <div class="qr-wrap">
+            <img id="qrPanel" class="qr-img" alt="Código QR para sumarse" />
+            <div>
+              <a id="joinLink" class="small" target="_blank" rel="noopener"></a>
+              <div id="playersLive" class="status">Jugadores: 0</div>
+            </div>
+          </div>
+          <label class="check"><input type="checkbox" id="playersChk" /> Dejar que se sumen celulares</label>
+          <label class="check"><input type="checkbox" id="playerWordsChk" /> Cada jugador puede escribir su palabra</label>
+          <label class="check"><input type="checkbox" id="showQrChk" /> Mostrar el QR en la salida</label>
+          <div class="param-control">
+            <span class="param-label"><span>Máximo de jugadores</span><span class="param-value" id="maxPlayersValue"></span></span>
+            <input type="range" id="maxPlayersRange" min="1" max="30" step="1" />
+          </div>
+          <p id="joinNote" class="muted small"></p>
+        </div>
+
+        <div class="card">
           <div class="card-title">💬 Palabras</div>
           <select id="sourceSelect" title="De dónde salen las palabras"></select>
           <p id="sourceHint" class="muted small"></p>

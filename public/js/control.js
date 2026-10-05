@@ -105,6 +105,28 @@
   });
   $("maxHandsRange").addEventListener("change", (e) => e.target.blur());
   $("cursorChk").addEventListener("change", (e) => setSetting("showCursor", e.target.checked));
+
+  // --- Multijugador ---
+  $("playersChk").addEventListener("change", (e) => setSetting("players", e.target.checked));
+  $("playerWordsChk").addEventListener("change", (e) => setSetting("playerWords", e.target.checked));
+  $("showQrChk").addEventListener("change", (e) => setSetting("showQR", e.target.checked));
+  $("maxPlayersRange").addEventListener("input", (e) => {
+    const v = parseInt(e.target.value, 10);
+    $("maxPlayersValue").textContent = v;
+    setSetting("maxPlayers", v);
+  });
+  $("maxPlayersRange").addEventListener("change", (e) => e.target.blur());
+  $("qrPanel").src = "/qr.svg?t=" + Date.now();
+  fetch("/api/join").then((r) => r.json()).then((j) => {
+    $("joinLink").href = j.url;
+    $("joinLink").textContent = j.url.replace(/^https?:\/\//, "");
+    $("joinNote").textContent = /^http:/.test(j.url)
+      ? "En la compu: los celulares tienen que estar en el mismo wifi. La cámara del celu sólo anda con https (en Render sí); el dedo anda siempre."
+      : "Los celulares pueden entrar desde cualquier lugar con internet.";
+  }).catch(() => {});
+  socket.on("players-count", (c) => {
+    $("playersLive").textContent = "Jugadores: " + (c ? c.count : 0) + (c && c.active ? " · tocando: " + c.active : "");
+  });
   $("mirrorChk").addEventListener("change", (e) => setSetting("mirror", e.target.checked));
   $("countrySelect").addEventListener("change", (e) => setSetting("trendsCountry", e.target.value));
   $("refreshTrendsBtn").addEventListener("click", () => socket.emit("refresh-trends"));
@@ -169,6 +191,11 @@
     setIfIdle($("maxHandsRange"), "value", s.maxHands || 4);
     $("maxHandsValue").textContent = s.maxHands || 4;
     $("cursorChk").checked = !!s.showCursor;
+    $("playersChk").checked = s.players !== false;
+    $("playerWordsChk").checked = s.playerWords !== false;
+    $("showQrChk").checked = !!s.showQR;
+    setIfIdle($("maxPlayersRange"), "value", s.maxPlayers || 12);
+    $("maxPlayersValue").textContent = s.maxPlayers || 12;
     $("mirrorChk").checked = !!s.mirror;
     setIfIdle($("countrySelect"), "value", s.trendsCountry);
     setIfIdle($("newsSelect"), "value", s.newsSource || "ar");

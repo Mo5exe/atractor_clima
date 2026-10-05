@@ -199,6 +199,10 @@
     cameraHandsAt = performance.now();
   });
 
+  // --- Multijugador: los celulares que se sumaron con el QR ---
+  let remotePlayers = [];
+  socket.on("players", (list) => { remotePlayers = Array.isArray(list) ? list : []; });
+
   // --- Multitouch: cada dedo (pantalla o mesa táctil) o el mouse es una mano ---
   function setTouch(evt) {
     touches.set(evt.pointerId, { x: evt.clientX / window.innerWidth, y: evt.clientY / window.innerHeight });
@@ -234,6 +238,11 @@
       local.hands.forEach((hnd, i) => list.push({ id: "l" + (hnd.id != null ? hnd.id : i), x: hnd.x * w, y: hnd.y * h }));
     }
     for (const [pid, t] of touches) list.push({ id: "t" + pid, x: t.x * w, y: t.y * h });
+    // "p" = jugador con celular: trae su color y, si escribió, su palabra.
+    const s = currentState.settings || {};
+    if (s.players !== false) {
+      for (const pl of remotePlayers) list.push({ id: "p" + pl.n, x: pl.x * w, y: pl.y * h, color: pl.color, word: pl.word || "" });
+    }
     return list;
   }
 
@@ -274,16 +283,36 @@
     for (const hnd of hands) {
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = "rgba(92,200,255,0.9)";
-      ctx.lineWidth = 2;
-      ctx.shadowColor = "#5cc8ff";
+      ctx.strokeStyle = hnd.color || "rgba(92,200,255,0.9)";
+      ctx.lineWidth = hnd.color ? 3 : 2;
+      ctx.shadowColor = hnd.color || "#5cc8ff";
       ctx.shadowBlur = 14;
       const r = 16 + Math.sin(performance.now() / 160) * 3;
       ctx.beginPath();
       ctx.arc(hnd.x, hnd.y, r, 0, Math.PI * 2);
       ctx.stroke();
+      if (hnd.color && hnd.id) {
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = hnd.color;
+        ctx.font = "bold 14px 'Segoe UI', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(hnd.id).slice(1), hnd.x, hnd.y - r - 12);
+      }
       ctx.restore();
     }
+  }
+
+  // Código QR en un rincón para que la gente se sume con el celular.
+  const qrBox = document.getElementById("qrBox");
+  let qrShown = null;
+  function updateQr(settings) {
+    if (!qrBox) return;
+    const want = !!settings.showQR && settings.players !== false;
+    if (want === qrShown) return;
+    qrShown = want;
+    qrBox.hidden = !want;
+    if (want) document.getElementById("qrImg").src = "/qr.svg?t=" + Date.now();
   }
 
   let lastTime = performance.now();
@@ -321,7 +350,7 @@
       const attract = layer.params.attract != null ? layer.params.attract : 1;
       const climate = layer.params.climate != null ? layer.params.climate : 1;
       const env = {
-        hands: hands.map((pt) => Object.assign(toLayerSpace(pt, w, h, transform), { id: pt.id })),
+        hands: hands.map((pt) => Object.assign(toLayerSpace(pt, w, h, transform), { id: pt.id, word: pt.word, color: pt.color })),
         strength: globalStrength * attract,
         radius,
         words: trends,
@@ -354,7 +383,9 @@
       ctx.restore();
     }
     drawFog(w, h, settings);
-    if (settings.showCursor !== false) drawCursor(hands);
+    // Los jugadores con celular siempre ven su círculo (así saben dónde están).
+    drawCursor(settings.showCursor !== false ? hands : hands.filter((hh) => hh.color));
+    updateQr(settings);
 
     requestAnimationFrame(loop);
   }

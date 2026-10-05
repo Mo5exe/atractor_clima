@@ -243,4 +243,6 @@ async function getClimateWords(weather, settings) {
   };
 }
 
-module.exports = { getClimateWords, stateWords, phraseWords, parseClimateWords, fragmentsFrom, cleanPost, DEFAULT_CLIMATE_WORDS, PHRASES };
+function isBad(text) { return BAD.test(String(text || "")); }
+
+module.exports = { isBad, getClimateWords, stateWords, phraseWords, parseClimateWords, fragmentsFrom, cleanPost, DEFAULT_CLIMATE_WORDS, PHRASES };

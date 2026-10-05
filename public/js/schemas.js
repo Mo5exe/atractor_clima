@@ -398,6 +398,12 @@
     mirror: true,           // espejar la cámara (como un espejo)
     showCursor: true,       // dibujar un círculo donde está la mano
     maxHands: 4,            // cuántas manos detecta la cámara a la vez (1 a 6)
+
+    // --- Multijugador (cada persona con su celular) ---
+    players: true,          // dejar que se sumen celulares (página /mano.html)
+    maxPlayers: 12,         // cuántos celulares a la vez
+    playerWords: true,      // cada jugador puede escribir su propia palabra
+    showQR: false,          // mostrar el código QR en un rincón de la salida
     wordSource: "clima",
     trendsCountry: "argentina",
     newsSource: "ar",
