@@ -12,6 +12,8 @@
   var ATTRACT = { key: "attract", label: "Atracción a la mano", type: "range", min: 0, max: 1, step: 0.05, default: 1 };
   // Cuánto le afecta el clima a esa capa (viento, lluvia, temperatura, humedad).
   var CLIMATE = { key: "climate", label: "Influencia del clima", type: "range", min: 0, max: 1, step: 0.05, default: 1 };
+  // Cuánto reacciona esa capa a la música (sólo si el audio está activado).
+  var MUSIC = { key: "music", label: "Reacción a la música", type: "range", min: 0, max: 1, step: 0.05, default: 1 };
 
   var SCHEMAS = {
     particles: [
@@ -25,6 +27,7 @@
       { key: "originY", label: "Origen Y (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#66ccff" }
     ],
     fractalTree: [
@@ -36,6 +39,7 @@
       { key: "sway", label: "Balanceo (viento)", type: "range", min: 0, max: 30, step: 1, default: 6 },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "colorStart", label: "Color tronco", type: "color", default: "#5c3a21" },
       { key: "colorEnd", label: "Color hojas", type: "color", default: "#7cfc00" }
     ],
@@ -48,6 +52,7 @@
       { key: "lineWidth", label: "Grosor de línea", type: "range", min: 0.3, max: 5, step: 0.1, default: 1.2 },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#ffffff" }
     ],
     fire: [
@@ -60,6 +65,7 @@
       { key: "baseY", label: "Posición base Y (%)", type: "range", min: 0, max: 100, step: 1, default: 100 },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "colorCore", label: "Color del centro", type: "color", default: "#ffffc8" },
       { key: "colorMid", label: "Color medio", type: "color", default: "#ffaa28" },
       { key: "colorTip", label: "Color de las puntas", type: "color", default: "#e63c14" }
@@ -75,6 +81,7 @@
       { key: "opacity", label: "Opacidad", type: "range", min: 0.1, max: 1, step: 0.05, default: 0.55 },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#1e6fd9" }
     ],
     trending: [
@@ -88,6 +95,7 @@
       { key: "popularityScale", label: "Peso de la popularidad", type: "range", min: 0, max: 1, step: 0.05, default: 0.6 },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#ff3d8b" },
       { key: "glow", label: "Brillo", type: "checkbox", default: true }
     ],
@@ -101,6 +109,7 @@
       { key: "splash", label: "Salpicaduras", type: "checkbox", default: true },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#a8c8ff" }
     ],
     clouds: [
@@ -111,6 +120,7 @@
       { key: "speed", label: "Velocidad (además del viento)", type: "range", min: 0, max: 3, step: 0.05, default: 0.3 },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#c9d4e6" }
     ],
     pixels: [
@@ -132,6 +142,7 @@
       { key: "flicker", label: "Parpadeo", type: "checkbox", default: false },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color de los píxeles", type: "color", default: "#39ff9c" }
     ],
     images: [
@@ -160,7 +171,8 @@
       { key: "tintAmount", label: "Cuánto se tiñe (1 = silueta del color)", type: "range", min: 0, max: 1, step: 0.05, default: 0.6 },
       { key: "color", label: "Color para teñir", type: "color", default: "#ff3d8b" },
       ATTRACT,
-      CLIMATE
+      CLIMATE,
+      MUSIC
     ],
     glitch: [
       { key: "variant", label: "Variante", type: "select", default: "mixed", options: [
@@ -193,7 +205,8 @@
       { key: "color", label: "Color de bloques", type: "color", default: "#ff3d8b" },
       { key: "color2", label: "Segundo color", type: "color", default: "#5cc8ff" },
       ATTRACT,
-      CLIMATE
+      CLIMATE,
+      MUSIC
     ],
     stripesV: [
       { key: "count", label: "Cantidad de rayas", type: "range", min: 1, max: 80, step: 1, default: 14 },
@@ -212,6 +225,7 @@
       { key: "blend", label: "Sumar luz al cruzarse", type: "checkbox", default: true },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#5cc8ff" },
       { key: "color2", label: "Segundo color", type: "color", default: "#ff3d8b" }
     ],
@@ -232,6 +246,7 @@
       { key: "blend", label: "Sumar luz al cruzarse", type: "checkbox", default: true },
       ATTRACT,
       CLIMATE,
+      MUSIC,
       { key: "color", label: "Color", type: "color", default: "#ffb13d" },
       { key: "color2", label: "Segundo color", type: "color", default: "#7a5cff" }
     ]
@@ -316,7 +331,14 @@
     climateState: true,            // palabras: estado del clima
     climatePhrases: true,          // palabras: frases populares
     climateVoices: true,           // palabras: voces de Mastodon
-    climateWords: DEFAULT_CLIMATE_WORDS
+    climateWords: DEFAULT_CLIMATE_WORDS,
+
+    // --- Música (audio reactivo) ---
+    audioEnabled: false,           // apagado hasta que lo actives
+    audioSource: "mic",            // "mic" (micrófono / entrada de audio) o "system" (sonido de la compu)
+    audioDeviceId: "",             // entrada elegida ("" = la predeterminada)
+    audioSensitivity: 1.2,         // ganancia de los medidores
+    beatSensitivity: 0.5           // 0 = sólo golpes muy marcados, 1 = detecta más golpes
   };
 
   var api = {

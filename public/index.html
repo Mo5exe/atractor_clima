@@ -91,6 +91,55 @@
         </div>
       </section>
 
+      <!-- ===== MÚSICA ===== -->
+      <section class="card music-card">
+        <div class="weather-head">
+          <div class="card-title">🎵 Música (audio reactivo)</div>
+          <label class="switch"><input type="checkbox" id="audioOn" /> <span>Activar audio</span></label>
+        </div>
+        <div class="music-grid">
+          <div class="music-input">
+            <div class="row wrap">
+              <label class="check">Fuente
+                <select id="audioSource">
+                  <option value="mic">Micrófono o entrada de audio</option>
+                  <option value="system">Sonido de la compu (Spotify, YouTube, DJ…)</option>
+                </select>
+              </label>
+            </div>
+            <div class="row" id="audioDeviceRow">
+              <select id="audioDevice" title="Entrada de audio"><option value="">Entrada predeterminada</option></select>
+              <button id="audioDevicesBtn" type="button">Buscar entradas</button>
+            </div>
+            <p id="audioHint" class="muted small"></p>
+            <div class="param-control">
+              <span class="param-label"><span>Sensibilidad</span><span class="param-value" id="audioSensValue"></span></span>
+              <input type="range" id="audioSens" min="0.2" max="4" step="0.05" />
+            </div>
+            <div class="param-control">
+              <span class="param-label"><span>Detección de beats</span><span class="param-value" id="beatSensValue"></span></span>
+              <input type="range" id="beatSens" min="0" max="1" step="0.05" />
+            </div>
+          </div>
+          <div class="music-meters">
+            <div class="meter"><span>Graves</span><div class="bar"><i id="mBass"></i></div></div>
+            <div class="meter"><span>Medios</span><div class="bar"><i id="mMid"></i></div></div>
+            <div class="meter"><span>Agudos</span><div class="bar"><i id="mTreble"></i></div></div>
+            <div class="meter"><span>Volumen</span><div class="bar"><i id="mVolume"></i></div></div>
+            <div class="beat-row"><span id="beatDot" class="beat-dot"></span> <span>Beat</span> <b id="bpmValue">— BPM</b></div>
+            <div id="audioStatus" class="status">Audio apagado.</div>
+          </div>
+          <div class="music-help muted small">
+            <p><b>Qué hace la música:</b></p>
+            <p>• <b>Beat:</b> golpe de partículas y píxeles, salta el glitch, las rayas cambian de color, aparece una palabra o imagen.</p>
+            <p>• <b>Graves:</b> las rayas engordan, el agua y el fuego pulsan, el árbol se sacude.</p>
+            <p>• <b>Agudos:</b> brillo, más ruido en el glitch, los píxeles titilan.</p>
+            <p>• <b>Volumen:</b> todo se mueve más rápido e intenso.</p>
+            <p>Cada capa tiene <b>“Reacción a la música”</b> (0 = la ignora). El audio se escucha en la <b>ventana de salida</b>: la primera vez apretá ahí el botón “🎵 Clic para activar el audio”.</p>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== CÁMARA + ATRACTOR + PALABRAS ===== -->
       <section class="top-grid">
         <div class="card">
@@ -176,6 +225,7 @@
   <script src="js/schemas.js"></script>
   <script src="js/control.js"></script>
   <script src="js/control-weather.js"></script>
+  <script src="js/control-music.js"></script>
   <script type="module" src="js/control-camera.js"></script>
 </body>
 </html>

@@ -364,6 +364,11 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Medidores de audio que manda la salida, para verlos en el panel.
+  socket.on("audio-levels", (payload) => {
+    socket.broadcast.volatile.emit("audio-levels", payload);
+  });
+
   // Posición de las manos (normalizada 0..1). Sólo se reenvía, no se guarda.
   socket.on("hands", (payload) => {
     socket.broadcast.volatile.emit("hands", payload);

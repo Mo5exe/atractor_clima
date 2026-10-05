@@ -38,6 +38,25 @@ Para bajar una versión nueva: **`actualizar.bat`** (no borra presets ni imágen
 | Nubes / humedad | cantidad de nubes, niebla, palabras más difusas |
 | Hora del día | color del cielo, nubes más oscuras de noche |
 
+## Música (audio reactivo)
+
+Tarjeta **🎵 Música** en el panel (viene apagada). Fuentes: micrófono / entrada de audio
+(placa, interfaz, consola del DJ) o **sonido de la compu** (Chrome: elegir "Toda la
+pantalla" y tildar "Compartir audio del sistema"). El audio se escucha en la **ventana de
+salida**: la primera vez hay que apretar ahí "🎵 Clic para activar el audio".
+
+- **Beat**: golpe de partículas y píxeles, salta el glitch, las rayas cambian de color,
+  aparece una palabra o una imagen.
+- **Graves**: las rayas engordan, el agua y el fuego pulsan, el árbol se sacude.
+- **Agudos**: brillo, más ruido en el glitch, los píxeles titilan.
+- **Volumen**: todo se mueve más rápido e intenso.
+
+Medidores en vivo (graves, medios, agudos, volumen), indicador de beat y BPM. Cada capa
+tiene **"Reacción a la música"** (0 = la ignora). Sensibilidad y detección de beats
+ajustables.
+
+La versión anterior al audio quedó guardada en la rama `version-1-antes-del-audio`.
+
 ## Capas
 
 Partículas · Árbol Fractal · Flow Field · Fuego · Agua (banda espejada o hasta el borde) ·
@@ -92,7 +111,8 @@ climate-words.js     palabras del clima (estado, frases, tus palabras, Mastodon)
 word-sources.js      otras fuentes de palabras
 run.bat              inicia todo (doble clic) · actualizar.bat: baja la última versión
 public/js/effects.js los 12 efectos + atractor + clima
-public/js/output.js  salida: clima suavizado, cielo, niebla
+public/js/output.js  salida: clima suavizado, cielo, niebla, música
+public/js/audio.js   análisis de audio (graves, medios, agudos, volumen, beat, BPM)
 public/js/control.js / control-weather.js   panel de control
 ```
 

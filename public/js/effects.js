@@ -120,6 +120,15 @@ function makeNoise2D() {
   };
 }
 
+// --- Música -------------------------------------------------------------------
+// env.audio = { bass, mid, treble, volume, pulse, beat, m } o null si no hay audio.
+function musicOf(env) { return (env && env.audio) || null; }
+// Multiplicador de velocidad por volumen ("intensidad general").
+function musicSpeed(env, amount) {
+  const a = musicOf(env);
+  return a ? 1 + a.volume * (amount != null ? amount : 1) : 1;
+}
+
 // --- Atractor (mano) ----------------------------------------------------------
 function pullToward(env, x, y) {
   if (!env || !env.hands || env.hands.length === 0 || env.strength <= 0) return null;
@@ -167,9 +176,20 @@ class ParticlesEffect {
       this.particles.push(np);
     }
     if (this.particles.length > count) this.particles.length = count;
-    const k = dt * 60;
+    const k = dt * 60 * musicSpeed(env, 1.2);
     const wind = windOf(env);
     const rain = weatherOf(env).rainNorm * (env.climate != null ? env.climate : 1);
+    // Beat: explota un golpe de partículas desde el origen.
+    const au = musicOf(env);
+    if (au && au.beat) {
+      const n = Math.round(this.particles.length * 0.3 * au.m);
+      for (let i = 0; i < n; i++) {
+        const q = this.particles[Math.floor(Math.random() * this.particles.length)];
+        Object.assign(q, this.spawn(w, h, p));
+        const boost = 2.5 + au.bass * 3;
+        q.vx *= boost; q.vy *= boost;
+      }
+    }
     for (const particle of this.particles) {
       particle.age += dt;
       if (particle.age >= particle.life) { Object.assign(particle, this.spawn(w, h, p)); continue; }
@@ -215,7 +235,9 @@ class FractalTreeEffect {
     ctx.lineCap = "round";
     const wind = windOf(env);
     this.windBend = wind.x * 0.35;
-    this.swayBoost = 1 + wind.n * 4;
+    const au = musicOf(env);
+    this.swayBoost = 1 + wind.n * 4 + (au ? au.bass * 6 : 0);
+    this.shake = au ? au.bass * 0.09 + au.pulse * 0.06 : 0;
     this.colStart = climateColor(p.colorStart, env);
     this.rgbStart = climateRgb(p.colorStart, env);
     this.rgbEnd = climateRgb(p.colorEnd, env);
@@ -226,6 +248,7 @@ class FractalTreeEffect {
     const swayRad = ((p.sway || 0) * Math.PI) / 180 * this.swayBoost;
     const depthT = depthIndex / Math.max(1, p.depth);
     let a = angle + swayRad * Math.sin(this.time * (1.3 + this.swayBoost * 0.4) + depthIndex * 0.6) + this.windBend * depthT * 0.5;
+    if (this.shake) a += (Math.random() - 0.5) * this.shake * depthT * 2; // graves: se sacude
 
     const pull = pullToward(this.env, x, y);
     if (pull) {
@@ -278,7 +301,7 @@ class FlowFieldEffect {
       const angle = this.noise(particle.x * p.noiseScale, particle.y * p.noiseScale + this.z) * Math.PI * 4;
       let vx = Math.cos(angle);
       let vy = Math.sin(angle);
-      let speed = p.particleSpeed * (1 + wind.n * 1.5);
+      let speed = p.particleSpeed * (1 + wind.n * 1.5) * musicSpeed(env, 1.5);
       if (windLen > 0.001) {
         vx = vx * (1 - wb) + (wind.x / windLen) * wb;
         vy = vy * (1 - wb) + (wind.y / windLen) * wb;
@@ -370,9 +393,15 @@ class FireEffect {
     if (this.particles.length > count) this.particles.length = count;
     const k = dt * 60;
     const wind = windOf(env);
+    const au = musicOf(env);
+    this.pulse = au ? au.bass * 0.9 + au.pulse * 0.4 : 0; // graves: el fuego pulsa
     for (const particle of this.particles) {
       particle.age += dt;
-      if (particle.age >= particle.life) { Object.assign(particle, this.spawn(w, h, p, rain)); continue; }
+      if (particle.age >= particle.life) {
+        Object.assign(particle, this.spawn(w, h, p, rain));
+        particle.vy *= 1 + this.pulse;
+        continue;
+      }
       particle.x += particle.vx * k + Math.sin(t * 3 + particle.seed) * p.turbulence * 0.5 * (1 + wind.n);
       particle.y += particle.vy * k;
       particle.vy -= 0.01 * p.height;
@@ -402,7 +431,7 @@ class FireEffect {
       ctx.fillStyle = lut[Math.max(0, Math.min(32, Math.round(lifeRatio * 32)))];
       ctx.globalAlpha = Math.max(0, Math.min(1, lifeRatio * 1.3));
       ctx.beginPath();
-      ctx.arc(particle.x, particle.y, Math.max(0.5, p.size * lifeRatio), 0, Math.PI * 2);
+      ctx.arc(particle.x, particle.y, Math.max(0.5, p.size * lifeRatio * (1 + (this.pulse || 0))), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.filter = "none";
@@ -474,8 +503,9 @@ class WaterEffect {
     const c = env.climate != null ? env.climate : 1;
     this.time = t;
     // Las olas corren hacia donde sopla el viento.
-    this.phase += dt * p.speed * (1 + wind.n * 2.5) * (wind.x < -0.05 ? -1 : 1);
-    this.ampBoost = 1 + wind.n * 2;
+    this.phase += dt * p.speed * (1 + wind.n * 2.5) * musicSpeed(env, 1.5) * (wind.x < -0.05 ? -1 : 1);
+    const au = musicOf(env);
+    this.ampBoost = (1 + wind.n * 2) * (1 + (au ? au.bass * 2.2 + au.pulse * 0.8 : 0)); // graves: el agua pulsa
     // La lluvia sube el nivel poco a poco (hasta 18% de la pantalla).
     const targetLevel = weatherOf(env).rainNorm * c * 0.18 * h;
     this.level += (targetLevel - this.level) * Math.min(1, dt * 0.3);
@@ -551,6 +581,13 @@ class TrendingWordsEffect {
     if (hands.length > 0 && !current && this.waitTimer >= p.interval) {
       this.spawn(hands[0], p, env);
       this.waitTimer = 0;
+    } else if (!current && this.waitTimer >= p.interval) {
+      // Beat: aparece en un lugar al azar (aunque nadie toque).
+      const au = musicOf(env);
+      if (au && au.beat && Math.random() < au.m) {
+        this.spawn({ x: w * (0.15 + Math.random() * 0.7), y: h * (0.2 + Math.random() * 0.6) }, p, env);
+        this.waitTimer = 0;
+      }
     }
     const wind = windOf(env);
     for (const it of this.items) {
@@ -581,64 +618,88 @@ class TrendingWordsEffect {
     this.items = this.items.filter((it) => !it.flying || (it.flyAge < it.flyTime &&
       it.x > -w * 0.5 && it.x < w * 1.5 && it.y > -h * 0.5 && it.y < h * 1.5));
   }
+  // Cada palabra se dibuja una sola vez en dos versiones (nítida y difuminada)
+  // y después sólo se mueve, escala y mezcla: mucho más liviano que difuminar
+  // el texto en cada cuadro.
+  sprite(it, color, glow, blurPx) {
+    const R = Math.round(it.size * 1.5); // resolución de sobra para cuando crece
+    const key = it.text + "|" + R + "|" + color + "|" + glow + "|" + Math.round(blurPx * 2);
+    if (it.spriteKey === key) return it.sprites;
+    const font = "800 " + R + "px 'Segoe UI', system-ui, sans-serif";
+    const meas = document.createElement("canvas").getContext("2d");
+    meas.font = font;
+    const textW = Math.ceil(meas.measureText(it.text).width);
+    const pad = Math.ceil(R * 0.45 + blurPx * 4 + (glow ? 60 : 10));
+    const make = (soft) => {
+      const c = document.createElement("canvas");
+      c.width = textW + pad * 2;
+      c.height = R + pad * 2;
+      const x = c.getContext("2d");
+      x.font = font;
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      if (soft && blurPx > 0.3) x.filter = "blur(" + (blurPx * 1.5).toFixed(1) + "px)";
+      if (glow) { x.shadowColor = color; x.shadowBlur = (24 + 30 * soft) * 1.5; }
+      x.fillStyle = color;
+      x.fillText(it.text, c.width / 2, c.height / 2);
+      x.shadowBlur = 0;
+      if (!soft) { x.fillStyle = "rgba(255,255,255,0.35)"; x.fillText(it.text, c.width / 2, c.height / 2); }
+      return c;
+    };
+    it.sprites = { sharp: make(0), soft: make(1), textW, R };
+    it.spriteKey = key;
+    return it.sprites;
+  }
   draw(ctx, w, h, p, env) {
     ctx.globalCompositeOperation = "source-over";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
     const APPEAR = 0.35;
     const color = climateColor(p.color, env);
     // Con humedad las palabras se difuminan un poco más.
     const c = env.climate != null ? env.climate : 1;
     const humidBlur = Math.max(0, weatherOf(env).humidity - 0.6) * 10 * c;
+    const fadeTo = p.fadeTo != null ? p.fadeTo : 0.4;
+    const maxBlur = (p.blur != null ? p.blur : 4) + humidBlur;
     for (const it of this.items) {
-      let scale, alpha, soft, blur;
-      const fadeTo = p.fadeTo != null ? p.fadeTo : 0.4;
-      const maxBlur = (p.blur != null ? p.blur : 4) + humidBlur;
+      let scale, alpha, soft;
       if (!it.flying) {
         const a = Math.min(1, it.age / APPEAR);
-        scale = 1 + 2.2 * Math.pow(a - 1, 3) + 1.2 * Math.pow(a - 1, 2);
+        scale = 1 + 2.2 * Math.pow(a - 1, 3) + 1.2 * Math.pow(a - 1, 2); // surge con un leve rebote
         soft = Math.max(0, Math.min(1, (it.age - APPEAR) / 0.5));
         soft = soft * soft * (3 - 2 * soft);
         alpha = Math.min(1, a * 1.5) * (1 - (1 - fadeTo) * soft);
-        blur = maxBlur * soft;
       } else {
         const f = it.flyAge / it.flyTime;
         soft = 1;
-        scale = 1 + f * 0.35;
+        scale = 1 + f * 0.45;
         alpha = fadeTo * Math.max(0, 1 - f * f);
-        blur = maxBlur * (1 + f);
       }
+      if (alpha <= 0.003) continue;
+      const sp = this.sprite(it, color, !!p.glow, maxBlur);
       let size = it.size * Math.max(0.01, scale) * (1 + 0.4 * it.near);
-      ctx.font = "800 " + Math.round(size) + "px 'Segoe UI', system-ui, sans-serif";
-      let width = ctx.measureText(it.text).width;
-      if (width > w * 0.92) {
-        size *= (w * 0.92) / width;
-        ctx.font = "800 " + Math.round(size) + "px 'Segoe UI', system-ui, sans-serif";
-        width = ctx.measureText(it.text).width;
-      }
+      // Que nunca sea más ancha que la pantalla.
+      const textWAtSize = sp.textW * (size / sp.R);
+      if (textWAtSize > w * 0.92) size *= (w * 0.92) / textWAtSize;
+      const k = size / sp.R;
+      const width = sp.textW * k;
       let x = it.x, y = it.y;
       if (!it.flying) {
         x = Math.max(width / 2 + 8, Math.min(w - width / 2 - 8, x));
         y = Math.max(size / 2 + 8, Math.min(h - size / 2 - 8, y));
         it.x = x; it.y = y;
       }
+      const dw = sp.sharp.width * k;
+      const dh = sp.sharp.height * k;
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(it.rot);
-      ctx.globalAlpha = alpha;
-      if (blur > 0.3) ctx.filter = "blur(" + blur.toFixed(1) + "px)";
-      if (p.glow) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 24 + 30 * soft;
+      if (soft < 0.999) {
+        ctx.globalAlpha = alpha * (1 - soft);
+        ctx.drawImage(sp.sharp, -dw / 2, -dh / 2, dw, dh);
       }
-      ctx.fillStyle = color;
-      ctx.fillText(it.text, 0, 0);
-      ctx.shadowBlur = 0;
-      if (soft < 1) {
-        ctx.fillStyle = "rgba(255,255,255," + (0.35 * alpha * (1 - soft)) + ")";
-        ctx.fillText(it.text, 0, 0);
+      if (soft > 0.001) {
+        ctx.globalAlpha = alpha * soft;
+        ctx.drawImage(sp.soft, -dw / 2, -dh / 2, dw, dh);
       }
-      ctx.filter = "none";
       ctx.restore();
     }
     ctx.globalAlpha = 1;
@@ -676,7 +737,7 @@ class RainEffect {
       if (pull) vx += pull.ux * pull.force * p.speed * 0.8;
       d.vx = vx;
       d.x += vx * d.s * k;
-      d.y += p.speed * d.s * k;
+      d.y += p.speed * d.s * k * musicSpeed(env, 0.6);
       if (d.y > h) {
         if (p.splash && this.splashes.length < 300 && Math.random() < 0.5) {
           this.splashes.push({ x: d.x, y: h - 2, age: 0 });
@@ -836,8 +897,20 @@ class PixelsEffect {
       this.lastColor = p.color;
       this.pixels.forEach((px) => { px.color = this.pickColor(p, env); });
     }
-    const k = dt * 60;
+    const k = dt * 60 * musicSpeed(env, 1.2);
     const wind = windOf(env);
+    // Beat: explota un golpe de píxeles desde el origen.
+    const au = musicOf(env);
+    if (au && au.beat) {
+      const n = Math.round(this.pixels.length * 0.3 * au.m);
+      for (let i = 0; i < n; i++) {
+        const q = this.pixels[Math.floor(Math.random() * this.pixels.length)];
+        Object.assign(q, this.spawn(w, h, p, env));
+        const boost = 2.5 + au.bass * 3;
+        q.vx *= boost; q.vy *= boost;
+      }
+    }
+    this.treble = au ? au.treble : 0;
     for (const px of this.pixels) {
       px.age += dt;
       if (px.age >= px.life) { Object.assign(px, this.spawn(w, h, p, env)); continue; }
@@ -865,6 +938,8 @@ class PixelsEffect {
       if (lifeRatio <= 0) continue;
       let alpha = Math.min(1, lifeRatio * 1.6);
       if (p.flicker) alpha *= 0.55 + 0.45 * (Math.sin(now * 12 + px.flicker) > 0 ? 1 : 0.2);
+      // Agudos: los píxeles titilan.
+      if (this.treble > 0.15 && Math.random() < this.treble * 0.45) alpha *= 0.15;
       ctx.globalAlpha = alpha;
       ctx.fillStyle = px.color || single;
       const s = px.size;
@@ -903,6 +978,15 @@ class StripesEffect {
   }
   update(dt, t, w, h, p, env) {
     const len = this.vertical ? w : h;
+    const au = musicOf(env);
+    this.bass = au ? au.bass : 0;
+    // Beat: las rayas cambian de color.
+    if (au && au.beat) {
+      this.beatFlash = 1;
+      for (const s of this.stripes) if (Math.random() < 0.6 * au.m) s.colorIndex = Math.random();
+      this.hueShift = (this.hueShift || 0) + 40 + Math.random() * 100;
+    }
+    this.beatFlash = (this.beatFlash || 0) * Math.exp(-dt * 6);
     const count = Math.round(p.count);
     while (this.stripes.length < count) this.stripes.push(this.spawn(len, p));
     if (this.stripes.length > count) this.stripes.length = count;
@@ -918,7 +1002,7 @@ class StripesEffect {
         s.nextTurn = 1 + Math.random() * 4;
       }
       s.vel += (s.targetVel - s.vel) * Math.min(1, dt * 1.5);
-      s.pos += (s.vel * p.speed + windAlong * 4) * k;
+      s.pos += (s.vel * p.speed * musicSpeed(env, 1.5) + windAlong * 4) * k;
       // La mano atrae a las rayas cercanas y las engorda.
       const cx = this.vertical ? s.pos : w / 2;
       const cy = this.vertical ? h / 2 : s.pos;
@@ -940,7 +1024,11 @@ class StripesEffect {
   }
   stripeColor(s, p, env) {
     const mode = p.colorMode || "single";
-    if (mode === "rainbow") return "hsl(" + Math.floor((s.colorIndex * 360 + this.time * 20) % 360) + ",90%,60%)";
+    if (mode === "rainbow") return "hsl(" + Math.floor((s.colorIndex * 360 + this.time * 20 + (this.hueShift || 0)) % 360) + ",90%,60%)";
+    // Un solo color: con el beat se aclara un instante.
+    if (mode === "single" && this.beatFlash > 0.05) {
+      return rgbToCss(mixRgb(climateRgb(p.color, env), { r: 255, g: 255, b: 255 }, this.beatFlash * 0.6));
+    }
     if (mode === "two") return climateColor(s.colorIndex < 0.5 ? p.color : p.color2, env);
     if (mode === "climate") {
       const base = tempTarget(hexToRgb(p.color), weatherOf(env).tempNorm);
@@ -954,7 +1042,8 @@ class StripesEffect {
     ctx.globalAlpha = p.opacity;
     for (const s of this.stripes) {
       const wave = 0.5 + 0.5 * Math.sin(this.time * p.pulse * s.freq + s.phase);
-      const width = (p.minWidth + (p.maxWidth - p.minWidth) * wave) * (1 + s.near * 1.5);
+      // Graves: las rayas engordan.
+      const width = (p.minWidth + (p.maxWidth - p.minWidth) * wave) * (1 + s.near * 1.5) * (1 + (this.bass || 0) * 1.6);
       ctx.fillStyle = this.stripeColor(s, p, env);
       if (this.vertical) ctx.fillRect(s.pos - width / 2, 0, width, h);
       else ctx.fillRect(0, s.pos - width / 2, w, width);
@@ -1159,6 +1248,13 @@ class ImagesEffect {
     if (hands.length > 0 && !current && this.waitTimer >= p.interval) {
       this.spawn(hands[0], p, env);
       this.waitTimer = 0;
+    } else if (!current && this.waitTimer >= p.interval) {
+      // Beat: aparece en un lugar al azar (aunque nadie toque).
+      const au = musicOf(env);
+      if (au && au.beat && Math.random() < au.m) {
+        this.spawn({ x: w * (0.15 + Math.random() * 0.7), y: h * (0.2 + Math.random() * 0.6) }, p, env);
+        this.waitTimer = 0;
+      }
     }
     const wind = windOf(env);
     for (const it of this.items) {
@@ -1278,6 +1374,17 @@ class GlitchEffect {
       this.active = this.burstLeft > 0;
     }
     this.handBoost = touching ? 1 + (env.strength || 0) * 0.8 : 1;
+    // Música: el beat dispara el glitch; el volumen lo intensifica; los agudos suman ruido.
+    const au = musicOf(env);
+    if (au) {
+      if (au.beat && p.timing !== "always" && Math.random() < au.m) {
+        this.burstLeft = Math.max(this.burstLeft, p.burstLength * 0.7);
+        this.active = true;
+        this.lastRoll = -1; // patrón nuevo con el golpe
+      }
+      this.handBoost *= 1 + au.volume * 0.8;
+      this.treble = au.treble;
+    } else this.treble = 0;
     this.wasTouching = touching;
   }
   region(ctx, w, h, p, env) {
@@ -1362,7 +1469,7 @@ class GlitchEffect {
       }
     }
     if (pick("noise")) {
-      const n = Math.floor(40 + 400 * amount);
+      const n = Math.floor(40 + 400 * amount + 600 * (this.treble || 0));
       for (let i = 0; i < n; i++) {
         pat.noise.push({ x: r.x + Math.random() * r.w, y: r.y + Math.random() * r.h, w: 1 + Math.random() * 6, h: 1 + Math.random() * 3, c: Math.random() });
       }

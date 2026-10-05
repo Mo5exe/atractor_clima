@@ -31,6 +31,7 @@
   socket.on("state", (state) => {
     currentState = state || { layers: [], settings: {} };
     window.appSettings = currentState.settings || {};
+    syncAudio(window.appSettings);
     const activeIds = new Set(currentState.layers.map((l) => l.id));
     for (const id of Array.from(instances.keys())) {
       if (!activeIds.has(id)) instances.delete(id);
@@ -128,6 +129,60 @@
     return list.map((im) => im.url);
   }
 
+  // --- Música (audio reactivo) ---
+  const gate = document.getElementById("audioGate");
+  let audioWanted = null;   // { source, deviceId } o null
+  let audioKey = "";
+  let audioStarting = false;
+  let audioFeatures = null;
+  let lastLevelsSent = 0;
+
+  async function startAudio() {
+    if (!audioWanted || audioStarting) return;
+    audioStarting = true;
+    gate.hidden = true;
+    const ok = await AudioReact.start(audioWanted);
+    audioStarting = false;
+    // El navegador sólo deja arrancar el audio después de un clic en esta ventana.
+    if (!ok || AudioReact.suspended) showGate();
+  }
+  function showGate() {
+    if (!audioWanted) { gate.hidden = true; return; }
+    gate.textContent = audioWanted.source === "system"
+      ? "🎵 Clic para capturar el sonido de la compu"
+      : "🎵 Clic para activar el audio";
+    gate.hidden = false;
+  }
+  gate.addEventListener("click", (e) => { e.stopPropagation(); startAudio(); });
+
+  function syncAudio(settings) {
+    const wanted = settings.audioEnabled ? { source: settings.audioSource || "mic", deviceId: settings.audioDeviceId || "" } : null;
+    const key = wanted ? wanted.source + "|" + wanted.deviceId : "";
+    if (key === audioKey) return;
+    audioKey = key;
+    audioWanted = wanted;
+    AudioReact.stop();
+    audioFeatures = null;
+    if (!wanted) { gate.hidden = true; return; }
+    // El sonido de la compu siempre necesita un clic (Chrome pide elegir qué compartir).
+    if (wanted.source === "system") showGate();
+    else startAudio();
+  }
+
+  function sendLevels(now) {
+    if (now - lastLevelsSent < 66) return; // ~15 veces por segundo alcanza para los medidores
+    lastLevelsSent = now;
+    const f = audioFeatures;
+    socket.volatile.emit("audio-levels", {
+      running: AudioReact.running && !AudioReact.suspended,
+      waitingClick: !gate.hidden,
+      error: AudioReact.error,
+      label: AudioReact.label,
+      bass: f ? f.bass : 0, mid: f ? f.mid : 0, treble: f ? f.treble : 0, volume: f ? f.volume : 0,
+      pulse: f ? f.pulse : 0, bpm: f ? f.bpm : 0
+    });
+  }
+
   socket.on("trends", (info) => {
     if (info && Array.isArray(info.trends) && info.trends.length > 0) trends = info.trends;
   });
@@ -191,6 +246,15 @@
     return { x: rx + ox - (ox - w / 2), y: ry + oy - (oy - h / 2) };
   }
 
+  // Música para una capa, ya multiplicada por su "Reacción a la música".
+  function musicFor(layer) {
+    if (!audioFeatures) return null;
+    const m = layer.params.music != null ? layer.params.music : 1;
+    if (m <= 0.001) return null;
+    const f = audioFeatures;
+    return { bass: f.bass * m, mid: f.mid * m, treble: f.treble * m, volume: f.volume * m, pulse: f.pulse * m, beat: f.beat, m };
+  }
+
   function drawCursor(hands) {
     for (const hnd of hands) {
       ctx.save();
@@ -222,6 +286,12 @@
     const globalStrength = settings.attractorStrength != null ? settings.attractorStrength : 0.8;
 
     stepWeather(dt);
+    if (audioWanted) {
+      audioFeatures = AudioReact.features(dt, settings.audioSensitivity != null ? settings.audioSensitivity : 1.2,
+        settings.beatSensitivity != null ? settings.beatSensitivity : 0.5);
+      if (AudioReact.running && AudioReact.suspended) showGate();
+      sendLevels(now);
+    } else audioFeatures = null;
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
     ctx.fillStyle = backgroundColor(settings);
@@ -243,12 +313,14 @@
         images: layer.type === "images" ? imagesFor(layer) : null,
         weather: weatherNow,
         climate,
-        tint: climateColorAmount * climate
+        tint: climateColorAmount * climate,
+        audio: musicFor(layer)
       };
       try {
         inst.update(dt, t, w, h, layer.params, env);
         ctx.save();
         applyLayerTransform(ctx, w, h, transform);
+
         inst.draw(ctx, w, h, layer.params, env);
         ctx.restore();
       } catch (err) {
@@ -257,6 +329,14 @@
       }
     });
 
+    // Agudos = brillo: se suma la imagen sobre sí misma (lo oscuro queda oscuro).
+    if (audioFeatures && audioFeatures.treble > 0.05) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = Math.min(0.6, audioFeatures.treble * 0.45);
+      ctx.drawImage(canvas, 0, 0);
+      ctx.restore();
+    }
     drawFog(w, h, settings);
     if (settings.showCursor !== false) drawCursor(hands);
 

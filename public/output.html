@@ -20,6 +20,21 @@
       touch-action: none;
       cursor: crosshair;
     }
+    #audioGate {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      padding: 12px 20px;
+      border-radius: 999px;
+      border: 1px solid #5cc8ff;
+      background: rgba(5, 19, 26, 0.85);
+      color: #d4f1ff;
+      font: 15px "Segoe UI", Roboto, Arial, sans-serif;
+      cursor: pointer;
+      z-index: 5;
+    }
+    #audioGate[hidden] { display: none; }
     #hint {
       position: fixed;
       left: 50%;
@@ -44,6 +59,8 @@
   <div id="hint">Todavía no hay capas.<br>Agregalas desde el panel de control.<br><br>Doble clic: pantalla completa · Clic y arrastrar: simular la mano</div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <button id="audioGate" type="button" hidden></button>
+  <script src="js/audio.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/output.js"></script>
   <script type="module" src="js/output-camera.js"></script>
