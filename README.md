@@ -76,6 +76,18 @@ Subí PNG con fondo transparente (también JPG, GIF, WebP) desde la tarjeta de l
 - **Siempre visibles**: flotan alrededor del punto de origen; la mano las atrae y el
   viento las hamaca.
 
+### Animaciones
+
+Subí **GIF**, **PNG animado (APNG)**, **WebP animado** o videos **MP4 / MOV (H.264)** y
+**WebM** (VP9; puede tener transparencia real). Se guardan en `data/animations` (hasta
+500 MB por archivo).
+- **Al tocar**: aparece donde toca la mano o el clic, se reproduce y sale volando.
+- **Siempre visibles**: flotan alrededor del punto de origen.
+- **Pantalla completa**: de fondo, ideal para loops de VJ (llenar o entera).
+- **Mezcla**: normal, quitar el fondo negro (screen), sumar luz, quitar el fondo blanco.
+- Con música: el volumen acelera la reproducción y el beat salta a otro momento (o vuelve
+  al principio), y aparece una animación nueva.
+
 ### Glitch
 
 Un filtro que distorsiona lo que dibujan las capas que están arriba en la lista (ponela

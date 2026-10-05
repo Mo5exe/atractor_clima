@@ -121,6 +121,13 @@
     ctx.restore();
   }
 
+  let animLibrary = []; // [{ id, url, name, kind }]
+  socket.on("animations", (list) => { animLibrary = Array.isArray(list) ? list : []; });
+  function animationsFor(layer) {
+    const chosen = Array.isArray(layer.params.animations) ? layer.params.animations : [];
+    const list = chosen.length ? animLibrary.filter((m) => chosen.includes(m.id)) : animLibrary;
+    return list.map((m) => ({ url: m.url, kind: m.kind }));
+  }
   let imageLibrary = []; // [{ id, url, name }]
   socket.on("images", (list) => { imageLibrary = Array.isArray(list) ? list : []; });
   function imagesFor(layer) {
@@ -311,6 +318,7 @@
         radius,
         words: trends,
         images: layer.type === "images" ? imagesFor(layer) : null,
+        animations: layer.type === "animations" ? animationsFor(layer) : null,
         weather: weatherNow,
         climate,
         tint: climateColorAmount * climate,

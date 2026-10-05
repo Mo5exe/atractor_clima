@@ -74,6 +74,85 @@ app.post("/api/images", express.raw({ type: () => true, limit: "20mb" }), (req, 
 });
 
 // ---------------------------------------------------------------------------
+// Animaciones subidas (capa "Animaciones"): GIF, PNG animado (APNG), WebP
+// animado, y videos MP4 / MOV (H.264) / WebM (VP9, con transparencia).
+// Se guardan en data/animations. Los videos pueden ser grandes: se reciben
+// en partes directo al disco.
+// ---------------------------------------------------------------------------
+const ANIMS_DIR = path.join(__dirname, "data", "animations");
+fs.mkdirSync(ANIMS_DIR, { recursive: true });
+app.use("/anims", express.static(ANIMS_DIR, { maxAge: "1h" }));
+const ANIM_EXT = /\.(gif|png|webp|mp4|mov|webm)$/i;
+const MAX_ANIM_BYTES = 500 * 1024 * 1024;
+
+function animType(buf) {
+  const img = imageType(buf);
+  if (img && img !== "jpg") return img;
+  if (buf.length > 12 && buf.slice(4, 8).toString("ascii") === "ftyp") {
+    return buf.slice(8, 12).toString("ascii") === "qt  " ? "mov" : "mp4";
+  }
+  if (buf.length > 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return "webm";
+  return null;
+}
+
+function listAnimations() {
+  try {
+    return fs.readdirSync(ANIMS_DIR)
+      .filter((f) => ANIM_EXT.test(f))
+      .map((f) => {
+        const st = fs.statSync(path.join(ANIMS_DIR, f));
+        const ext = f.split(".").pop().toLowerCase();
+        const label = f.replace(/^[0-9a-f]{8}-/, "").replace(/\.[a-z0-9]+$/i, "");
+        return {
+          id: f, url: "/anims/" + encodeURIComponent(f), name: label, at: st.mtimeMs,
+          kind: ["mp4", "mov", "webm"].includes(ext) ? "video" : "frames",
+          size: st.size
+        };
+      })
+      .sort((a, b) => a.at - b.at);
+  } catch (e) {
+    return [];
+  }
+}
+
+app.post("/api/animations", (req, res) => {
+  const tmp = path.join(ANIMS_DIR, randomUUID() + ".part");
+  const out = fs.createWriteStream(tmp);
+  let bytes = 0;
+  let head = Buffer.alloc(0);
+  let failed = false;
+  const fail = (status, error) => {
+    if (failed) return;
+    failed = true;
+    out.destroy();
+    fs.unlink(tmp, () => {});
+    res.status(status).json({ ok: false, error });
+  };
+  req.on("data", (chunk) => {
+    bytes += chunk.length;
+    if (head.length < 64) head = Buffer.concat([head, chunk.slice(0, 64 - head.length)]);
+    if (bytes > MAX_ANIM_BYTES) { req.destroy(); fail(413, "El archivo es muy grande (máximo 500 MB)."); }
+  });
+  req.pipe(out);
+  out.on("finish", () => {
+    if (failed) return;
+    const type = animType(head);
+    if (!type) return fail(400, "No es una animación GIF, PNG, WebP, MP4, MOV o WebM.");
+    const original = String(req.get("X-Filename") || "animacion");
+    const base = decodeURIComponent(original).replace(/\.[a-z0-9]+$/i, "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "animacion";
+    const id = randomUUID().slice(0, 8) + "-" + base + "." + type;
+    fs.rename(tmp, path.join(ANIMS_DIR, id), (err) => {
+      if (err) return fail(500, "No se pudo guardar el archivo.");
+      io.emit("animations", listAnimations());
+      res.json({ ok: true, id });
+    });
+  });
+  out.on("error", () => fail(500, "No se pudo guardar el archivo."));
+  req.on("aborted", () => fail(400, "Se cortó la subida."));
+});
+
+// ---------------------------------------------------------------------------
 // Estado
 // ---------------------------------------------------------------------------
 let state = {
@@ -253,6 +332,7 @@ io.on("connection", (socket) => {
   socket.emit("trends", trendsInfo);
   socket.emit("weather", weatherInfo);
   socket.emit("images", listImages());
+  socket.emit("animations", listAnimations());
 
   socket.on("add-layer", (type) => {
     try {
@@ -343,6 +423,17 @@ io.on("connection", (socket) => {
 
   socket.on("refresh-trends", () => refreshTrends());
   socket.on("refresh-weather", () => refreshWeather());
+
+  socket.on("delete-animation", (id) => {
+    const file = path.basename(String(id || ""));
+    if (!ANIM_EXT.test(file)) return;
+    try { fs.unlinkSync(path.join(ANIMS_DIR, file)); } catch (e) { /* ya no estaba */ }
+    state.layers.forEach((l) => {
+      if (Array.isArray(l.params.animations)) l.params.animations = l.params.animations.filter((x) => x !== file);
+    });
+    io.emit("animations", listAnimations());
+    broadcastState();
+  });
 
   socket.on("delete-image", (id) => {
     const file = path.basename(String(id || ""));

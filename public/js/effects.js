@@ -1593,6 +1593,276 @@ class GlitchEffect {
 }
 
 // ---------------------------------------------------------------------------
+// 14) ANIMACIONES — GIF, PNG animado, WebP animado y videos (MP4 / MOV / WebM).
+//     Al tocar (como las imágenes), flotando, o a pantalla completa (loop de VJ).
+// ---------------------------------------------------------------------------
+// Carga compartida: cada archivo se carga una sola vez.
+//  - videos: un <video> silenciado en loop.
+//  - GIF / PNG / WebP: se decodifican todos los cuadros con ImageDecoder (Chrome),
+//    para poder reproducirlos a cualquier velocidad y saltar de momento.
+const animCache = new Map(); // url -> { kind, ready, frames, durations, total, video, error }
+const ANIM_MAX_SIDE = 900;
+const ANIM_MAX_FRAMES = 600;
+
+function animMime(url) {
+  const ext = url.split("?")[0].split(".").pop().toLowerCase();
+  return { gif: "image/gif", png: "image/png", webp: "image/webp" }[ext] || "image/gif";
+}
+
+function loadAnim(media) {
+  let a = animCache.get(media.url);
+  if (a) return a;
+  a = { kind: media.kind, ready: false, frames: [], durations: [], total: 0, video: null, error: null };
+  animCache.set(media.url, a);
+  if (media.kind === "video") {
+    const v = document.createElement("video");
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.preload = "auto";
+    v.src = media.url;
+    v.addEventListener("loadeddata", () => { a.ready = true; v.play().catch(() => {}); });
+    v.addEventListener("error", () => { a.error = "no se pudo reproducir el video (¿códec no soportado? usá H.264 o WebM)"; });
+    a.video = v;
+    v.load();
+    return a;
+  }
+  (async () => {
+    try {
+      if (!("ImageDecoder" in window)) throw new Error("sin ImageDecoder");
+      const res = await fetch(media.url);
+      const dec = new ImageDecoder({ data: res.body, type: animMime(media.url) });
+      await dec.tracks.ready;
+      await dec.completed;
+      const count = Math.min(ANIM_MAX_FRAMES, dec.tracks.selectedTrack.frameCount || 1);
+      for (let i = 0; i < count; i++) {
+        const { image } = await dec.decode({ frameIndex: i });
+        const w = image.displayWidth, h = image.displayHeight;
+        const k = Math.min(1, ANIM_MAX_SIDE / Math.max(w, h));
+        const bmp = await createImageBitmap(image, k < 1 ? { resizeWidth: Math.round(w * k), resizeHeight: Math.round(h * k) } : {});
+        const dur = image.duration ? image.duration / 1e6 : 0.1; // microsegundos → segundos
+        image.close();
+        a.frames.push(bmp);
+        a.durations.push(dur > 0.005 ? dur : 0.1);
+        if (i === 0) a.ready = true; // ya se puede mostrar mientras carga el resto
+      }
+      a.total = a.durations.reduce((x, y) => x + y, 0) || 0.1;
+      dec.close();
+    } catch (err) {
+      // Plan B: una imagen común (Chrome igual anima los GIF).
+      const img = new Image();
+      img.onload = () => { a.img = img; a.ready = true; a.total = 1; };
+      img.onerror = () => { a.error = "no se pudo abrir"; };
+      img.src = media.url;
+    }
+  })();
+  return a;
+}
+
+// Cuadro a mostrar en el tiempo t (segundos).
+function animFrame(a, t) {
+  if (!a || !a.ready) return null;
+  if (a.video) return a.video.readyState >= 2 ? a.video : null;
+  if (a.img && !a.frames.length) return a.img;
+  if (a.frames.length === 1 || !a.total) return a.frames[0];
+  let tt = ((t % a.total) + a.total) % a.total;
+  for (let i = 0; i < a.frames.length; i++) {
+    tt -= a.durations[i];
+    if (tt < 0) return a.frames[i];
+  }
+  return a.frames[a.frames.length - 1];
+}
+function sourceSize(src) {
+  return {
+    w: src.videoWidth || src.naturalWidth || src.width || 1,
+    h: src.videoHeight || src.naturalHeight || src.height || 1
+  };
+}
+const BLENDS = { normal: "source-over", screen: "screen", lighter: "lighter", multiply: "multiply" };
+
+class AnimationsEffect {
+  constructor() {
+    this.items = [];
+    this.floating = new Map();
+    this.waitTimer = 0;
+    this.clock = 0;
+    this.lastJump = 0;
+    this.fullIndex = 0;
+    this.fullSince = 0;
+  }
+  pick(list) {
+    if (!list || !list.length) return null;
+    return list[Math.floor(Math.random() * list.length)];
+  }
+  spawn(at, p, env) {
+    const media = this.pick(env.animations);
+    if (!media) return;
+    loadAnim(media);
+    const wind = windOf(env);
+    const ang = Math.random() * Math.PI * 2;
+    let dx = Math.cos(ang) + wind.x * 2.5, dy = Math.sin(ang) + wind.y * 2.5;
+    const len = Math.hypot(dx, dy) || 1;
+    this.items.push({
+      media, x: at.x, y: at.y, age: 0, t0: this.clock, flying: false, vel: 0,
+      dirX: dx / len, dirY: dy / len, scale: 1 + (Math.random() * 2 - 1) * p.sizeVariation,
+      rot: (Math.random() - 0.5) * 0.15, spin: (Math.random() - 0.5) * 2, hold: p.hold, flyTime: p.flyTime
+    });
+  }
+  update(dt, t, w, h, p, env) {
+    const list = env.animations || [];
+    list.forEach((m) => loadAnim(m));
+    const au = musicOf(env);
+    const speed = p.playSpeed * musicSpeed(env, 1);
+    this.clock += dt * speed;
+    // Videos: velocidad de reproducción.
+    list.forEach((m) => {
+      const a = animCache.get(m.url);
+      if (a && a.video) {
+        const rate = Math.max(0.1, Math.min(4, speed));
+        if (Math.abs(a.video.playbackRate - rate) > 0.05) a.video.playbackRate = rate;
+        if (a.video.paused && a.ready) a.video.play().catch(() => {});
+      }
+    });
+    // Beat: saltar a otro momento o volver al principio.
+    if (au && au.beat && p.beatAction !== "none" && t - this.lastJump > 0.35 && Math.random() < au.m) {
+      this.lastJump = t;
+      list.forEach((m) => {
+        const a = animCache.get(m.url);
+        if (!a || !a.ready) return;
+        if (a.video && a.video.duration) a.video.currentTime = p.beatAction === "restart" ? 0 : Math.random() * a.video.duration;
+      });
+      if (p.beatAction === "restart") { this.clock = 0; this.items.forEach((it) => { it.t0 = 0; }); }
+      else this.clock += Math.random() * 5;
+      if (p.mode === "fullscreen" && list.length > 1 && p.beatAction === "jump" && Math.random() < 0.3) {
+        this.fullIndex = (this.fullIndex + 1) % list.length;
+      }
+    }
+
+    if (p.mode === "fullscreen") {
+      // Si hay varias, van cambiando cada ~ (tiempo quieta × 5) segundos.
+      if (list.length > 1 && t - this.fullSince > Math.max(2, p.hold * 5)) {
+        this.fullIndex = (this.fullIndex + 1) % list.length;
+        this.fullSince = t;
+      }
+      this.items = [];
+      this.floating.clear();
+      return;
+    }
+
+    if (p.mode === "always") {
+      const keep = new Set(list.map((m) => m.url));
+      for (const k of Array.from(this.floating.keys())) if (!keep.has(k)) this.floating.delete(k);
+      list.forEach((m, i) => {
+        if (!this.floating.has(m.url)) {
+          const ang = (i / Math.max(1, list.length)) * Math.PI * 2;
+          const r = list.length > 1 ? Math.min(w, h) * 0.24 : 0;
+          this.floating.set(m.url, { media: m, hx: w / 2 + Math.cos(ang) * r, hy: h / 2 + Math.sin(ang) * r, x: w / 2, y: h / 2,
+            seed: Math.random() * 10, scale: 1 + (Math.random() * 2 - 1) * p.sizeVariation, near: 0, t0: Math.random() * 3 });
+        }
+      });
+      const wind = windOf(env);
+      for (const f of this.floating.values()) {
+        let tx = f.hx + Math.sin(t * 0.6 + f.seed) * 14 + wind.x * 60;
+        let ty = f.hy + Math.cos(t * 0.5 + f.seed) * 10 + wind.y * 40;
+        const pull = pullToward(env, f.x, f.y);
+        if (pull) { tx += pull.dx * pull.force; ty += pull.dy * pull.force; }
+        f.x += (tx - f.x) * Math.min(1, dt * 3);
+        f.y += (ty - f.y) * Math.min(1, dt * 3);
+        f.near += ((pull ? pull.force : 0) - f.near) * Math.min(1, dt * 5);
+        f.rot = Math.sin(t * (0.8 + wind.n * 3) + f.seed) * (0.03 + wind.n * 0.2);
+      }
+      this.items = [];
+      return;
+    }
+
+    // Al tocar (y también con el beat, si hay música).
+    this.floating.clear();
+    const hands = (env && env.hands) || [];
+    const current = this.items.find((it) => !it.flying);
+    if (!current) this.waitTimer += dt;
+    if (hands.length > 0 && !current && this.waitTimer >= p.interval) {
+      this.spawn(hands[0], p, env);
+      this.waitTimer = 0;
+    } else if (!current && this.waitTimer >= p.interval && au && au.beat && Math.random() < au.m) {
+      this.spawn({ x: w * (0.15 + Math.random() * 0.7), y: h * (0.2 + Math.random() * 0.6) }, p, env);
+      this.waitTimer = 0;
+    }
+    const wind = windOf(env);
+    for (const it of this.items) {
+      it.age += dt;
+      if (!it.flying) {
+        const pull = pullToward(env, it.x, it.y);
+        if (pull) {
+          const follow = Math.min(1, dt * 6 * Math.min(1, env.strength));
+          it.x += pull.dx * follow;
+          it.y += pull.dy * follow;
+        }
+        if (it.age >= 0.35 + it.hold) { it.flying = true; it.flyAge = 0; this.waitTimer = 0; }
+      } else {
+        it.flyAge += dt;
+        it.vel += p.flySpeed * 2000 * dt;
+        it.x += it.dirX * it.vel * dt + wind.x * 120 * dt;
+        it.y += it.dirY * it.vel * dt + wind.y * 120 * dt;
+        if (p.spin) it.rot += it.spin * dt;
+      }
+    }
+    this.items = this.items.filter((it) => !it.flying || (it.flyAge < it.flyTime &&
+      it.x > -w * 0.6 && it.x < w * 1.6 && it.y > -h * 0.6 && it.y < h * 1.6));
+  }
+  drawSrc(ctx, src, x, y, maxSide, rot, alpha) {
+    const { w: sw, h: sh } = sourceSize(src);
+    const ratio = sw / sh;
+    const dw = ratio >= 1 ? maxSide : maxSide * ratio;
+    const dh = ratio >= 1 ? maxSide / ratio : maxSide;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot || 0);
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.drawImage(src, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
+  }
+  draw(ctx, w, h, p, env) {
+    const list = env.animations || [];
+    ctx.globalCompositeOperation = BLENDS[p.blend] || "source-over";
+    if (p.mode === "fullscreen") {
+      const media = list[this.fullIndex % Math.max(1, list.length)];
+      if (!media) return;
+      const src = animFrame(loadAnim(media), this.clock);
+      if (!src) return;
+      const { w: sw, h: sh } = sourceSize(src);
+      const k = p.fit === "contain" ? Math.min(w / sw, h / sh) : Math.max(w / sw, h / sh);
+      const dw = sw * k, dh = sh * k;
+      ctx.globalAlpha = p.opacity;
+      ctx.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      ctx.globalAlpha = 1;
+      return;
+    }
+    if (p.mode === "always") {
+      for (const f of this.floating.values()) {
+        const src = animFrame(loadAnim(f.media), this.clock + f.t0);
+        if (src) this.drawSrc(ctx, src, f.x, f.y, p.size * f.scale * (1 + 0.25 * f.near), f.rot, p.opacity);
+      }
+      return;
+    }
+    for (const it of this.items) {
+      const src = animFrame(loadAnim(it.media), this.clock - it.t0);
+      if (!src) continue;
+      let scale, alpha;
+      if (!it.flying) {
+        const a = Math.min(1, it.age / 0.35);
+        scale = 1 + 2.2 * Math.pow(a - 1, 3) + 1.2 * Math.pow(a - 1, 2);
+        alpha = Math.min(1, a * 1.5);
+      } else {
+        const f = it.flyAge / it.flyTime;
+        scale = 1 + f * 0.3;
+        alpha = Math.max(0, 1 - f * f);
+      }
+      this.drawSrc(ctx, src, it.x, it.y, p.size * it.scale * Math.max(0.01, scale), it.rot, alpha * p.opacity);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Fábrica de efectos por tipo
 // ---------------------------------------------------------------------------
 const EffectFactories = {
@@ -1607,6 +1877,7 @@ const EffectFactories = {
   pixels: () => new PixelsEffect(),
   images: () => new ImagesEffect(),
   glitch: () => new GlitchEffect(),
+  animations: () => new AnimationsEffect(),
   stripesV: () => new StripesEffect(true),
   stripesH: () => new StripesEffect(false)
 };

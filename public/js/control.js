@@ -289,7 +289,7 @@
       Object.keys(refs.params).forEach((k) => {
         const { input, valueSpan, def } = refs.params[k];
         const v = layer.params[k];
-        if (def.type === "images") { refs.params[k].render(); return; }
+        if (def.type === "images" || def.type === "animations") { refs.params[k].render(); return; }
         if (document.activeElement === input) return;
         if (def.type === "checkbox") input.checked = !!v;
         else input.value = v;
@@ -345,6 +345,7 @@
       trending: "Cuando la mano toca, surge una palabra ahí, se queda “Tiempo quieta”, se vuelve translúcida y sale volando (hacia donde sopla el viento, si hay). Si la mano sigue ahí, aparece otra después de la “Espera entre palabras”.",
       rain: "La cantidad de gotas sigue a la lluvia real (o a la del modo manual). Con “Influencia del clima” en 0, siempre llueve con las “Gotas sin lluvia real”.",
       clouds: "La cantidad de nubes sigue a la nubosidad y la humedad; el viento las arrastra.",
+      animations: "Subí GIF, PNG o WebP animados, o videos MP4 / MOV (H.264) / WebM. Para videos con fondo negro usá Mezcla “Quitar el fondo negro”. WebM (VP9) puede tener transparencia real. “Pantalla completa” es ideal para loops de VJ. Con música: el volumen acelera la reproducción y el beat salta a otro momento.",
       images: "Subí PNG con fondo transparente. “Al tocar”: aparece una imagen donde toca la mano (o el clic), se queda y sale volando. “Siempre visibles”: flotan en el centro (movelo con el punto de origen), la mano las atrae y el viento las hamaca.",
       glitch: "El glitch distorsiona lo que dibujan las capas que están ARRIBA de ésta en la lista: ponela última (con ▼) para que afecte a todo. “Una parte” usa el punto de origen como centro del rectángulo. Con viento fuerte o tormenta el glitch aumenta.",
       pixels: "Los píxeles salen del Origen X/Y y se expanden por la pantalla. El viento los arrastra y la mano los atrae.",
@@ -427,21 +428,41 @@
   }
 
   // ------------------------------------------------------------------ imágenes
-  let imageLibrary = [];
+  // Dos bibliotecas: imágenes y animaciones (mismo control, distinto destino).
+  const LIBRARIES = {
+    images: {
+      list: [], endpoint: "/api/images", deleteEvent: "delete-image", accept: "image/png,image/webp,image/gif,image/jpeg",
+      okFile: (f) => /^image\//.test(f.type) || /\.(png|jpe?g|gif|webp)$/i.test(f.name),
+      kinds: "PNG, JPG, GIF o WebP", button: "+ Subir imágenes",
+      empty: "Todavía no hay imágenes. Subí PNG con fondo transparente (o arrastralas acá)."
+    },
+    animations: {
+      list: [], endpoint: "/api/animations", deleteEvent: "delete-animation",
+      accept: "image/gif,image/png,image/apng,image/webp,video/mp4,video/webm,video/quicktime,.mov",
+      okFile: (f) => /^(image|video)\//.test(f.type) || /\.(gif|png|apng|webp|mp4|webm|mov)$/i.test(f.name),
+      kinds: "GIF, PNG animado, WebP, MP4, MOV o WebM", button: "+ Subir animaciones",
+      empty: "Todavía no hay animaciones. Subí GIF, PNG/WebP animados o videos MP4 / WebM (o arrastralos acá)."
+    }
+  };
   const imageWidgets = new Set();
   socket.on("images", (list) => {
-    imageLibrary = Array.isArray(list) ? list : [];
+    LIBRARIES.images.list = Array.isArray(list) ? list : [];
+    imageWidgets.forEach((render) => render());
+  });
+  socket.on("animations", (list) => {
+    LIBRARIES.animations.list = Array.isArray(list) ? list : [];
     imageWidgets.forEach((render) => render());
   });
 
-  async function uploadFiles(files, statusEl) {
-    const list = Array.from(files || []).filter((f) => /^image\//.test(f.type) || /\.(png|jpe?g|gif|webp)$/i.test(f.name));
-    if (list.length === 0) { statusEl.textContent = "Elegí archivos PNG, JPG, GIF o WebP."; return; }
+  async function uploadFiles(files, statusEl, lib) {
+    lib = lib || LIBRARIES.images;
+    const list = Array.from(files || []).filter(lib.okFile);
+    if (list.length === 0) { statusEl.textContent = "Elegí archivos " + lib.kinds + "."; return; }
     let ok = 0;
     for (const file of list) {
       statusEl.textContent = "Subiendo " + file.name + "…";
       try {
-        const res = await fetch("/api/images", {
+        const res = await fetch(lib.endpoint, {
           method: "POST",
           headers: { "X-Filename": encodeURIComponent(file.name), "Content-Type": file.type || "application/octet-stream" },
           body: file
@@ -453,10 +474,11 @@
         statusEl.textContent = "No se pudo subir " + file.name + ".";
       }
     }
-    if (ok) statusEl.textContent = ok === 1 ? "Imagen subida." : ok + " imágenes subidas.";
+    if (ok) statusEl.textContent = ok === 1 ? "Archivo subido." : ok + " archivos subidos.";
   }
 
   function buildImagesControl(layer, def, refs) {
+    const lib = LIBRARIES[def.type] || LIBRARIES.images;
     const wrap = document.createElement("div");
     wrap.className = "param-control param-images";
 
@@ -466,13 +488,13 @@
     title.textContent = def.label;
     const fileInput = document.createElement("input");
     fileInput.type = "file";
-    fileInput.accept = "image/png,image/webp,image/gif,image/jpeg";
+    fileInput.accept = lib.accept;
     fileInput.multiple = true;
     fileInput.hidden = true;
     const uploadBtn = document.createElement("button");
     uploadBtn.type = "button";
     uploadBtn.className = "primary";
-    uploadBtn.textContent = "+ Subir imágenes";
+    uploadBtn.textContent = lib.button;
     uploadBtn.addEventListener("click", () => fileInput.click());
     head.append(title, uploadBtn, fileInput);
 
@@ -484,34 +506,45 @@
     status.className = "muted small";
 
     fileInput.addEventListener("change", async () => {
-      await uploadFiles(fileInput.files, status);
+      await uploadFiles(fileInput.files, status, lib);
       fileInput.value = "";
     });
     // Arrastrar y soltar archivos sobre la grilla.
     ["dragenter", "dragover"].forEach((ev) => grid.addEventListener(ev, (e) => { e.preventDefault(); grid.classList.add("drop"); }));
     ["dragleave", "drop"].forEach((ev) => grid.addEventListener(ev, () => grid.classList.remove("drop")));
-    grid.addEventListener("drop", (e) => { e.preventDefault(); uploadFiles(e.dataTransfer.files, status); });
+    grid.addEventListener("drop", (e) => { e.preventDefault(); uploadFiles(e.dataTransfer.files, status, lib); });
 
     function selected() {
       const l = currentState.layers.find((x) => x.id === layer.id);
-      return l && Array.isArray(l.params.images) ? l.params.images : [];
+      return l && Array.isArray(l.params[def.key]) ? l.params[def.key] : [];
     }
     function render() {
       if (!document.body.contains(wrap) && wrap.isConnected === false && grid.childElementCount) { imageWidgets.delete(render); return; }
       const sel = selected();
       grid.innerHTML = "";
-      if (imageLibrary.length === 0) {
-        grid.innerHTML = '<p class="muted small">Todavía no hay imágenes. Subí PNG con fondo transparente (o arrastralas acá).</p>';
+      if (lib.list.length === 0) {
+        grid.innerHTML = '<p class="muted small">' + lib.empty + '</p>';
       }
-      imageLibrary.forEach((im) => {
+      lib.list.forEach((im) => {
         const item = document.createElement("div");
         const on = sel.includes(im.id);
         item.className = "image-item" + (on ? " on" : "") + (sel.length === 0 ? " all" : "");
         item.title = im.name + (on ? " (elegida)" : "");
-        const img = document.createElement("img");
-        img.src = im.url;
-        img.alt = im.name;
-        img.loading = "lazy";
+        let img;
+        if (im.kind === "video") {
+          img = document.createElement("video");
+          img.src = im.url + "#t=0.3"; // muestra un cuadro aunque todavía no arranque
+          img.preload = "metadata";
+          img.muted = true;
+          img.loop = true;
+          img.autoplay = true;
+          img.playsInline = true;
+        } else {
+          img = document.createElement("img");
+          img.src = im.url;
+          img.alt = im.name;
+          img.loading = "lazy";
+        }
         const del = document.createElement("button");
         del.type = "button";
         del.className = "image-del";
@@ -519,9 +552,15 @@
         del.title = "Borrar esta imagen de la biblioteca";
         del.addEventListener("click", (e) => {
           e.stopPropagation();
-          if (confirm("¿Borrar “" + im.name + "” de la biblioteca? (se saca de todas las capas)")) socket.emit("delete-image", im.id);
+          if (confirm("¿Borrar “" + im.name + "” de la biblioteca? (se saca de todas las capas)")) socket.emit(lib.deleteEvent, im.id);
         });
         item.append(img, del);
+        if (im.kind === "video") {
+          const badge = document.createElement("span");
+          badge.className = "media-badge";
+          badge.textContent = "▶ video";
+          item.appendChild(badge);
+        }
         item.addEventListener("click", () => {
           const cur = selected();
           const next = cur.includes(im.id) ? cur.filter((x) => x !== im.id) : cur.concat(im.id);
@@ -529,9 +568,9 @@
         });
         grid.appendChild(item);
       });
-      note.textContent = imageLibrary.length === 0 ? "" :
-        sel.length === 0 ? "Usa todas las imágenes. Tocá una para elegir sólo algunas." :
-        "Usa " + sel.length + " de " + imageLibrary.length + ". Tocá para sumar o sacar.";
+      note.textContent = lib.list.length === 0 ? "" :
+        sel.length === 0 ? (def.type === "animations" ? "Usa todas las animaciones." : "Usa todas las imágenes.") + " Tocá una para elegir sólo algunas." :
+        "Usa " + sel.length + " de " + lib.list.length + ". Tocá para sumar o sacar.";
     }
     imageWidgets.add(render);
     render();
@@ -541,7 +580,7 @@
   }
 
   function buildParamControl(layer, def, refs) {
-    if (def.type === "images") return buildImagesControl(layer, def, refs);
+    if (def.type === "images" || def.type === "animations") return buildImagesControl(layer, def, refs);
     const wrap = document.createElement("div");
     wrap.className = "param-control";
     const labelRow = document.createElement("span");

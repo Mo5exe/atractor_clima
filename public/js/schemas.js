@@ -174,6 +174,41 @@
       CLIMATE,
       MUSIC
     ],
+    animations: [
+      { key: "animations", label: "Animaciones de esta capa", type: "animations", default: [] },
+      { key: "mode", label: "Cuándo aparecen", type: "select", default: "touch", options: [
+        { value: "touch", label: "Al tocar (mano o clic)" },
+        { value: "always", label: "Siempre visibles (flotando)" },
+        { value: "fullscreen", label: "Pantalla completa (fondo / loop de VJ)" }
+      ] },
+      { key: "blend", label: "Mezcla", type: "select", default: "normal", options: [
+        { value: "normal", label: "Normal (respeta la transparencia)" },
+        { value: "screen", label: "Quitar el fondo negro (screen)" },
+        { value: "lighter", label: "Sumar luz (brilla más)" },
+        { value: "multiply", label: "Quitar el fondo blanco (multiply)" }
+      ] },
+      { key: "fit", label: "Ajuste en pantalla completa", type: "select", default: "cover", options: [
+        { value: "cover", label: "Llenar la pantalla (recorta)" },
+        { value: "contain", label: "Entera (sin recortar)" }
+      ] },
+      { key: "size", label: "Tamaño (px)", type: "range", min: 20, max: 1600, step: 5, default: 320 },
+      { key: "sizeVariation", label: "Variación de tamaño", type: "range", min: 0, max: 1, step: 0.05, default: 0.2 },
+      { key: "playSpeed", label: "Velocidad de reproducción", type: "range", min: 0.1, max: 4, step: 0.05, default: 1 },
+      { key: "opacity", label: "Opacidad", type: "range", min: 0.05, max: 1, step: 0.05, default: 1 },
+      { key: "hold", label: "Tiempo quieta (s)", type: "range", min: 0, max: 10, step: 0.05, default: 1.5 },
+      { key: "interval", label: "Espera entre animaciones (s)", type: "range", min: 0, max: 5, step: 0.05, default: 0.5 },
+      { key: "flySpeed", label: "Velocidad de vuelo", type: "range", min: 0.1, max: 4, step: 0.05, default: 0.8 },
+      { key: "flyTime", label: "Duración del vuelo (s)", type: "range", min: 0.3, max: 6, step: 0.05, default: 1.6 },
+      { key: "spin", label: "Girar al volar", type: "checkbox", default: false },
+      { key: "beatAction", label: "Con el beat", type: "select", default: "jump", options: [
+        { value: "jump", label: "Saltar a otro momento" },
+        { value: "restart", label: "Volver al principio" },
+        { value: "none", label: "Nada" }
+      ] },
+      ATTRACT,
+      CLIMATE,
+      MUSIC
+    ],
     glitch: [
       { key: "variant", label: "Variante", type: "select", default: "mixed", options: [
         { value: "mixed", label: "Todas mezcladas" },
@@ -264,6 +299,7 @@
     pixels: "Píxeles",
     images: "Imágenes",
     glitch: "Glitch",
+    animations: "Animaciones",
     stripesV: "Rayas verticales",
     stripesH: "Rayas horizontales"
   };
