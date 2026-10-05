@@ -10,6 +10,8 @@
   "use strict";
 
   var ATTRACT = { key: "attract", label: "Atracción a la mano", type: "range", min: 0, max: 1, step: 0.05, default: 1 };
+  // Cuánto le afecta el clima a esa capa (viento, lluvia, temperatura, humedad).
+  var CLIMATE = { key: "climate", label: "Influencia del clima", type: "range", min: 0, max: 1, step: 0.05, default: 1 };
 
   var SCHEMAS = {
     particles: [
@@ -22,6 +24,7 @@
       { key: "originX", label: "Origen X (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
       { key: "originY", label: "Origen Y (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
       ATTRACT,
+      CLIMATE,
       { key: "color", label: "Color", type: "color", default: "#66ccff" }
     ],
     fractalTree: [
@@ -32,6 +35,7 @@
       { key: "lineWidth", label: "Grosor tronco", type: "range", min: 1, max: 14, step: 0.5, default: 7 },
       { key: "sway", label: "Balanceo (viento)", type: "range", min: 0, max: 30, step: 1, default: 6 },
       ATTRACT,
+      CLIMATE,
       { key: "colorStart", label: "Color tronco", type: "color", default: "#5c3a21" },
       { key: "colorEnd", label: "Color hojas", type: "color", default: "#7cfc00" }
     ],
@@ -43,6 +47,7 @@
       { key: "lineLength", label: "Largo de estela", type: "range", min: 1, max: 24, step: 1, default: 5 },
       { key: "lineWidth", label: "Grosor de línea", type: "range", min: 0.3, max: 5, step: 0.1, default: 1.2 },
       ATTRACT,
+      CLIMATE,
       { key: "color", label: "Color", type: "color", default: "#ffffff" }
     ],
     fire: [
@@ -53,16 +58,20 @@
       { key: "size", label: "Tamaño de partícula", type: "range", min: 2, max: 32, step: 1, default: 15 },
       { key: "baseX", label: "Posición X (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
       { key: "baseY", label: "Posición base Y (%)", type: "range", min: 0, max: 100, step: 1, default: 100 },
-      ATTRACT
+      ATTRACT,
+      CLIMATE
     ],
     water: [
       { key: "waveCount", label: "Cantidad de olas", type: "range", min: 1, max: 6, step: 1, default: 3 },
       { key: "amplitude", label: "Amplitud", type: "range", min: 2, max: 100, step: 1, default: 24 },
       { key: "frequency", label: "Frecuencia", type: "range", min: 0.3, max: 8, step: 0.1, default: 2.2 },
       { key: "speed", label: "Velocidad", type: "range", min: 0, max: 5, step: 0.05, default: 1.0 },
-      { key: "levelY", label: "Nivel de agua (%)", type: "range", min: 0, max: 100, step: 1, default: 60 },
+      { key: "levelY", label: "Nivel / centro del agua (%)", type: "range", min: 0, max: 100, step: 1, default: 60 },
+      { key: "band", label: "Banda espejada (olas arriba y abajo)", type: "checkbox", default: true },
+      { key: "thickness", label: "Grosor de la banda (%)", type: "range", min: 2, max: 120, step: 1, default: 35 },
       { key: "opacity", label: "Opacidad", type: "range", min: 0.1, max: 1, step: 0.05, default: 0.55 },
       ATTRACT,
+      CLIMATE,
       { key: "color", label: "Color", type: "color", default: "#1e6fd9" }
     ],
     trending: [
@@ -75,8 +84,110 @@
       { key: "blur", label: "Difuminado (bordes suaves)", type: "range", min: 0, max: 20, step: 0.5, default: 4 },
       { key: "popularityScale", label: "Peso de la popularidad", type: "range", min: 0, max: 1, step: 0.05, default: 0.6 },
       ATTRACT,
+      CLIMATE,
       { key: "color", label: "Color", type: "color", default: "#ff3d8b" },
       { key: "glow", label: "Brillo", type: "checkbox", default: true }
+    ],
+    rain: [
+      { key: "minDrops", label: "Gotas sin lluvia real", type: "range", min: 0, max: 1500, step: 10, default: 120 },
+      { key: "maxDrops", label: "Gotas con lluvia fuerte", type: "range", min: 50, max: 4000, step: 10, default: 1600 },
+      { key: "speed", label: "Velocidad de caída", type: "range", min: 2, max: 40, step: 0.5, default: 16 },
+      { key: "slant", label: "Inclinación (°) — diagonal", type: "range", min: -60, max: 60, step: 1, default: 22 },
+      { key: "length", label: "Largo de gota", type: "range", min: 2, max: 60, step: 1, default: 18 },
+      { key: "lineWidth", label: "Grosor", type: "range", min: 0.3, max: 4, step: 0.1, default: 1 },
+      { key: "splash", label: "Salpicaduras", type: "checkbox", default: true },
+      ATTRACT,
+      CLIMATE,
+      { key: "color", label: "Color", type: "color", default: "#a8c8ff" }
+    ],
+    clouds: [
+      { key: "minClouds", label: "Nubes con cielo despejado", type: "range", min: 0, max: 30, step: 1, default: 2 },
+      { key: "maxClouds", label: "Nubes con cielo cubierto", type: "range", min: 1, max: 60, step: 1, default: 22 },
+      { key: "size", label: "Tamaño", type: "range", min: 40, max: 600, step: 5, default: 260 },
+      { key: "opacity", label: "Opacidad", type: "range", min: 0.02, max: 1, step: 0.01, default: 0.22 },
+      { key: "speed", label: "Velocidad (además del viento)", type: "range", min: 0, max: 3, step: 0.05, default: 0.3 },
+      ATTRACT,
+      CLIMATE,
+      { key: "color", label: "Color", type: "color", default: "#c9d4e6" }
+    ],
+    pixels: [
+      { key: "count", label: "Cantidad", type: "range", min: 10, max: 4000, step: 10, default: 600 },
+      { key: "speed", label: "Velocidad", type: "range", min: 0, max: 8, step: 0.1, default: 2 },
+      { key: "spread", label: "Dispersión (°)", type: "range", min: 5, max: 360, step: 1, default: 360 },
+      { key: "size", label: "Tamaño del píxel", type: "range", min: 1, max: 40, step: 1, default: 6 },
+      { key: "life", label: "Vida (s)", type: "range", min: 0.3, max: 15, step: 0.1, default: 5 },
+      { key: "originX", label: "Origen X (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
+      { key: "originY", label: "Origen Y (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
+      { key: "colorMode", label: "Colores", type: "select", default: "rainbow", options: [
+        { value: "single", label: "Todos del mismo color" },
+        { value: "rainbow", label: "Todos los colores" },
+        { value: "palette", label: "Tonos del color elegido" },
+        { value: "climate", label: "Según la temperatura" }
+      ] },
+      { key: "snap", label: "Alinear a grilla (pixel art)", type: "checkbox", default: true },
+      { key: "sizeVariation", label: "Tamaños distintos", type: "checkbox", default: false },
+      { key: "flicker", label: "Parpadeo", type: "checkbox", default: false },
+      ATTRACT,
+      CLIMATE,
+      { key: "color", label: "Color", type: "color", default: "#39ff9c" }
+    ],
+    images: [
+      { key: "images", label: "Imágenes de esta capa", type: "images", default: [] },
+      { key: "mode", label: "Cuándo aparecen", type: "select", default: "touch", options: [
+        { value: "touch", label: "Al tocar (mano o clic)" },
+        { value: "always", label: "Siempre visibles (flotando)" }
+      ] },
+      { key: "size", label: "Tamaño (px)", type: "range", min: 20, max: 1200, step: 5, default: 260 },
+      { key: "sizeVariation", label: "Variación de tamaño", type: "range", min: 0, max: 1, step: 0.05, default: 0.3 },
+      { key: "hold", label: "Tiempo quieta (s)", type: "range", min: 0, max: 8, step: 0.05, default: 0.9 },
+      { key: "interval", label: "Espera entre imágenes (s)", type: "range", min: 0, max: 5, step: 0.05, default: 0.5 },
+      { key: "flySpeed", label: "Velocidad de vuelo", type: "range", min: 0.1, max: 4, step: 0.05, default: 1 },
+      { key: "flyTime", label: "Duración del vuelo (s)", type: "range", min: 0.3, max: 6, step: 0.05, default: 1.6 },
+      { key: "fadeTo", label: "Transparencia al quedarse", type: "range", min: 0.05, max: 1, step: 0.05, default: 0.7 },
+      { key: "blur", label: "Difuminado", type: "range", min: 0, max: 20, step: 0.5, default: 0 },
+      { key: "spin", label: "Girar al volar", type: "checkbox", default: true },
+      ATTRACT,
+      CLIMATE
+    ],
+    stripesV: [
+      { key: "count", label: "Cantidad de rayas", type: "range", min: 1, max: 80, step: 1, default: 14 },
+      { key: "minWidth", label: "Grosor mínimo", type: "range", min: 0.5, max: 200, step: 0.5, default: 2 },
+      { key: "maxWidth", label: "Grosor máximo", type: "range", min: 1, max: 400, step: 1, default: 60 },
+      { key: "pulse", label: "Velocidad de engorde", type: "range", min: 0, max: 5, step: 0.05, default: 0.8 },
+      { key: "speed", label: "Velocidad de movimiento", type: "range", min: 0, max: 10, step: 0.1, default: 1.5 },
+      { key: "randomness", label: "Cambios de dirección", type: "range", min: 0, max: 3, step: 0.05, default: 1 },
+      { key: "opacity", label: "Opacidad", type: "range", min: 0.05, max: 1, step: 0.05, default: 0.55 },
+      { key: "colorMode", label: "Colores", type: "select", default: "two", options: [
+        { value: "single", label: "Un color" },
+        { value: "two", label: "Dos colores" },
+        { value: "rainbow", label: "Todos los colores" },
+        { value: "climate", label: "Según la temperatura" }
+      ] },
+      { key: "blend", label: "Sumar luz al cruzarse", type: "checkbox", default: true },
+      ATTRACT,
+      CLIMATE,
+      { key: "color", label: "Color", type: "color", default: "#5cc8ff" },
+      { key: "color2", label: "Segundo color", type: "color", default: "#ff3d8b" }
+    ],
+    stripesH: [
+      { key: "count", label: "Cantidad de rayas", type: "range", min: 1, max: 80, step: 1, default: 14 },
+      { key: "minWidth", label: "Grosor mínimo", type: "range", min: 0.5, max: 200, step: 0.5, default: 2 },
+      { key: "maxWidth", label: "Grosor máximo", type: "range", min: 1, max: 400, step: 1, default: 60 },
+      { key: "pulse", label: "Velocidad de engorde", type: "range", min: 0, max: 5, step: 0.05, default: 0.8 },
+      { key: "speed", label: "Velocidad de movimiento", type: "range", min: 0, max: 10, step: 0.1, default: 1.5 },
+      { key: "randomness", label: "Cambios de dirección", type: "range", min: 0, max: 3, step: 0.05, default: 1 },
+      { key: "opacity", label: "Opacidad", type: "range", min: 0.05, max: 1, step: 0.05, default: 0.55 },
+      { key: "colorMode", label: "Colores", type: "select", default: "two", options: [
+        { value: "single", label: "Un color" },
+        { value: "two", label: "Dos colores" },
+        { value: "rainbow", label: "Todos los colores" },
+        { value: "climate", label: "Según la temperatura" }
+      ] },
+      { key: "blend", label: "Sumar luz al cruzarse", type: "checkbox", default: true },
+      ATTRACT,
+      CLIMATE,
+      { key: "color", label: "Color", type: "color", default: "#ffb13d" },
+      { key: "color2", label: "Segundo color", type: "color", default: "#7a5cff" }
     ]
   };
 
@@ -86,7 +197,13 @@
     flowfield: "Flow Field",
     fire: "Fuego",
     water: "Agua",
-    trending: "Palabras"
+    trending: "Palabras",
+    rain: "Lluvia",
+    clouds: "Nubes",
+    pixels: "Píxeles",
+    images: "Imágenes",
+    stripesV: "Rayas verticales",
+    stripesH: "Rayas horizontales"
   };
 
   // Ajustes globales de la escena (no pertenecen a una capa).
@@ -103,6 +220,7 @@
 
   // De dónde salen las palabras de la capa "Palabras".
   var WORD_SOURCES = [
+    { id: "clima", label: "Palabras del clima", hint: "El estado del clima en vivo, frases populares sobre el clima, tus palabras para cada clima y (opcional) voces de la gente en Mastodon." },
     { id: "custom", label: "Mis palabras (lista propia)", hint: "Las palabras que escribas abajo, separadas por coma o en renglones." },
     { id: "wikipedia", label: "Lo más leído en Wikipedia", hint: "Los artículos más visitados ayer: temas del día, personas, lugares, ideas." },
     { id: "news", label: "Titulares de diarios", hint: "Las palabras que más se repiten hoy en los titulares de los diarios." },
@@ -117,19 +235,47 @@
     "algoritmo", "latencia", "ruido", "umbral", "deriva", "tierra", "agua", "cuerpo", "máquina"
   ].join(", ");
 
+  // Palabras propias por clima: una línea por clima, "clima: palabra, palabra".
+  // Climas: siempre, lluvia, llovizna, tormenta, calor, templado, fresco, frio, helada,
+  //         viento, humedad, nublado, despejado, niebla, nieve, noche, dia
+  var DEFAULT_CLIMATE_WORDS = [
+    "siempre: atmósfera, intemperie, pronóstico",
+    "lluvia: charco, tierra mojada, gotera, cauce",
+    "calor: evaporación, isla de calor, asfalto",
+    "frio: escarcha, aliento, vapor",
+    "viento: polen, semillas, deriva",
+    "humedad: moho, condensación, musgo",
+    "nublado: gris, umbral, espera",
+    "noche: rocío, silencio"
+  ].join("\n");
+
   var DEFAULT_SETTINGS = {
     attractorStrength: 0.8, // 0..1
     attractorRadius: 60,    // % de la diagonal de la pantalla donde actúa la mano
     mirror: true,           // espejar la cámara (como un espejo)
     showCursor: true,       // dibujar un círculo donde está la mano
-    wordSource: "custom",
+    wordSource: "clima",
     trendsCountry: "argentina",
-    customWords: DEFAULT_CUSTOM_WORDS
+    customWords: DEFAULT_CUSTOM_WORDS,
+
+    // --- Clima ---
+    city: { name: "Buenos Aires", lat: -34.6037, lon: -58.3816, country: "Argentina", region: "" },
+    weatherMode: "real",           // "real" (Open-Meteo) o "manual" (sliders del panel)
+    manualWeather: { temp: 18, humidity: 60, precip: 0, cloud: 30, wind: 10, windDir: 180, dayLight: 1 },
+    climateColor: 0.5,             // cuánto tiñe la temperatura los colores (frío azul, calor naranja)
+    fog: 0.6,                      // niebla según humedad y nubes
+    sky: true,                     // teñir el fondo según la hora (noche / amanecer / día)
+    bgColor: "#000000",            // color de fondo de la salida
+    climateState: true,            // palabras: estado del clima
+    climatePhrases: true,          // palabras: frases populares
+    climateVoices: true,           // palabras: voces de Mastodon
+    climateWords: DEFAULT_CLIMATE_WORDS
   };
 
   var api = {
     SCHEMAS: SCHEMAS, NAMES: NAMES, COUNTRIES: COUNTRIES, WORD_SOURCES: WORD_SOURCES,
-    DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_CUSTOM_WORDS: DEFAULT_CUSTOM_WORDS
+    DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_CUSTOM_WORDS: DEFAULT_CUSTOM_WORDS,
+    DEFAULT_CLIMATE_WORDS: DEFAULT_CLIMATE_WORDS
   };
 
   if (typeof module !== "undefined" && module.exports) {

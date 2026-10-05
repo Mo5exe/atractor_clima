@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Atractor - Actualizar
+title Atractor Clima - Actualizar
 cd /d "%~dp0"
 echo.
 echo  Bajando la ultima version desde GitHub...

@@ -106,7 +106,8 @@
     const info = WORD_SOURCES.find((s) => s.id === source) || WORD_SOURCES[0];
     $("sourceHint").textContent = info.hint;
     $("customBox").hidden = source !== "custom";
-    $("countryRow").hidden = source === "custom";
+    $("climateBox").hidden = source !== "clima";
+    $("countryRow").hidden = source === "custom" || source === "clima";
   }
 
   function setIfIdle(el, prop, value) {
@@ -142,6 +143,17 @@
     } else if (info.source === "respaldo") {
       status.className = "status warn";
       status.textContent = "No se pudo leer " + label + " (¿sin internet?). Mientras tanto uso tu lista propia.";
+    } else if (info.wordSource === "clima" && info.parts) {
+      const p = info.parts;
+      const bits = [];
+      if (p.estado) bits.push(p.estado + " del estado");
+      if (p.frase) bits.push(p.frase + " frases");
+      if (p.propia) bits.push(p.propia + " tuyas");
+      if (p.voz) bits.push(p.voz + " voces");
+      status.className = info.voicesFailed ? "status warn" : "status ok";
+      status.textContent = n + " palabras del clima (" + bits.join(", ") + ")" +
+        (info.categories ? " · " + info.categories.filter((c) => c !== "dia" && c !== "noche").join(", ") : "") +
+        (info.voicesFailed ? " · Mastodon no respondió" : "");
     } else if (info.source === "propias") {
       status.className = n ? "status ok" : "status warn";
       status.textContent = n ? n + " palabras de tu lista." : "Tu lista está vacía: escribí algunas palabras.";
@@ -258,6 +270,7 @@
     const container = $("layersContainer");
     container.innerHTML = "";
     layerInputs = new Map();
+    imageWidgets.clear();
     if (currentState.layers.length === 0) {
       const p = document.createElement("p");
       p.className = "empty-hint";
@@ -275,6 +288,7 @@
       Object.keys(refs.params).forEach((k) => {
         const { input, valueSpan, def } = refs.params[k];
         const v = layer.params[k];
+        if (def.type === "images") { refs.params[k].render(); return; }
         if (document.activeElement === input) return;
         if (def.type === "checkbox") input.checked = !!v;
         else input.value = v;
@@ -326,10 +340,19 @@
     header.append(title, controls);
     card.appendChild(header);
 
-    if (layer.type === "trending") {
+    const TIPS = {
+      trending: "Cuando la mano toca, surge una palabra ahí, se queda “Tiempo quieta”, se vuelve translúcida y sale volando (hacia donde sopla el viento, si hay). Si la mano sigue ahí, aparece otra después de la “Espera entre palabras”.",
+      rain: "La cantidad de gotas sigue a la lluvia real (o a la del modo manual). Con “Influencia del clima” en 0, siempre llueve con las “Gotas sin lluvia real”.",
+      clouds: "La cantidad de nubes sigue a la nubosidad y la humedad; el viento las arrastra.",
+      images: "Subí PNG con fondo transparente. “Al tocar”: aparece una imagen donde toca la mano (o el clic), se queda y sale volando. “Siempre visibles”: flotan en el centro (movelo con el punto de origen), la mano las atrae y el viento las hamaca.",
+      pixels: "Los píxeles salen del Origen X/Y y se expanden por la pantalla. El viento los arrastra y la mano los atrae.",
+      stripesV: "Cada raya engorda y adelgaza a su ritmo y se mueve hacia un costado u otro, cambiando de rumbo al azar. El viento las empuja; la mano las atrae y las engorda.",
+      stripesH: "Cada raya engorda y adelgaza a su ritmo y se mueve hacia arriba o abajo, cambiando de rumbo al azar. El viento las empuja; la mano las atrae y las engorda."
+    };
+    if (TIPS[layer.type]) {
       const tip = document.createElement("p");
       tip.className = "muted small layer-tip";
-      tip.textContent = "Cuando la mano toca, surge una palabra ahí, se queda “Tiempo quieta”, y sale volando hacia un lado al azar. Si la mano sigue ahí, aparece otra después de la “Espera entre palabras”.";
+      tip.textContent = TIPS[layer.type];
       card.appendChild(tip);
     }
 
@@ -401,7 +424,122 @@
     dot.style.top = y + "%";
   }
 
+  // ------------------------------------------------------------------ imágenes
+  let imageLibrary = [];
+  const imageWidgets = new Set();
+  socket.on("images", (list) => {
+    imageLibrary = Array.isArray(list) ? list : [];
+    imageWidgets.forEach((render) => render());
+  });
+
+  async function uploadFiles(files, statusEl) {
+    const list = Array.from(files || []).filter((f) => /^image\//.test(f.type) || /\.(png|jpe?g|gif|webp)$/i.test(f.name));
+    if (list.length === 0) { statusEl.textContent = "Elegí archivos PNG, JPG, GIF o WebP."; return; }
+    let ok = 0;
+    for (const file of list) {
+      statusEl.textContent = "Subiendo " + file.name + "…";
+      try {
+        const res = await fetch("/api/images", {
+          method: "POST",
+          headers: { "X-Filename": encodeURIComponent(file.name), "Content-Type": file.type || "application/octet-stream" },
+          body: file
+        });
+        const data = await res.json();
+        if (data.ok) ok++;
+        else statusEl.textContent = file.name + ": " + data.error;
+      } catch (err) {
+        statusEl.textContent = "No se pudo subir " + file.name + ".";
+      }
+    }
+    if (ok) statusEl.textContent = ok === 1 ? "Imagen subida." : ok + " imágenes subidas.";
+  }
+
+  function buildImagesControl(layer, def, refs) {
+    const wrap = document.createElement("div");
+    wrap.className = "param-control param-images";
+
+    const head = document.createElement("div");
+    head.className = "images-head";
+    const title = document.createElement("span");
+    title.textContent = def.label;
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/png,image/webp,image/gif,image/jpeg";
+    fileInput.multiple = true;
+    fileInput.hidden = true;
+    const uploadBtn = document.createElement("button");
+    uploadBtn.type = "button";
+    uploadBtn.className = "primary";
+    uploadBtn.textContent = "+ Subir imágenes";
+    uploadBtn.addEventListener("click", () => fileInput.click());
+    head.append(title, uploadBtn, fileInput);
+
+    const note = document.createElement("p");
+    note.className = "muted small";
+    const grid = document.createElement("div");
+    grid.className = "images-grid";
+    const status = document.createElement("p");
+    status.className = "muted small";
+
+    fileInput.addEventListener("change", async () => {
+      await uploadFiles(fileInput.files, status);
+      fileInput.value = "";
+    });
+    // Arrastrar y soltar archivos sobre la grilla.
+    ["dragenter", "dragover"].forEach((ev) => grid.addEventListener(ev, (e) => { e.preventDefault(); grid.classList.add("drop"); }));
+    ["dragleave", "drop"].forEach((ev) => grid.addEventListener(ev, () => grid.classList.remove("drop")));
+    grid.addEventListener("drop", (e) => { e.preventDefault(); uploadFiles(e.dataTransfer.files, status); });
+
+    function selected() {
+      const l = currentState.layers.find((x) => x.id === layer.id);
+      return l && Array.isArray(l.params.images) ? l.params.images : [];
+    }
+    function render() {
+      if (!document.body.contains(wrap) && wrap.isConnected === false && grid.childElementCount) { imageWidgets.delete(render); return; }
+      const sel = selected();
+      grid.innerHTML = "";
+      if (imageLibrary.length === 0) {
+        grid.innerHTML = '<p class="muted small">Todavía no hay imágenes. Subí PNG con fondo transparente (o arrastralas acá).</p>';
+      }
+      imageLibrary.forEach((im) => {
+        const item = document.createElement("div");
+        const on = sel.includes(im.id);
+        item.className = "image-item" + (on ? " on" : "") + (sel.length === 0 ? " all" : "");
+        item.title = im.name + (on ? " (elegida)" : "");
+        const img = document.createElement("img");
+        img.src = im.url;
+        img.alt = im.name;
+        img.loading = "lazy";
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "image-del";
+        del.textContent = "✕";
+        del.title = "Borrar esta imagen de la biblioteca";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (confirm("¿Borrar “" + im.name + "” de la biblioteca? (se saca de todas las capas)")) socket.emit("delete-image", im.id);
+        });
+        item.append(img, del);
+        item.addEventListener("click", () => {
+          const cur = selected();
+          const next = cur.includes(im.id) ? cur.filter((x) => x !== im.id) : cur.concat(im.id);
+          socket.emit("update-param", { id: layer.id, key: def.key, value: next });
+        });
+        grid.appendChild(item);
+      });
+      note.textContent = imageLibrary.length === 0 ? "" :
+        sel.length === 0 ? "Usa todas las imágenes. Tocá una para elegir sólo algunas." :
+        "Usa " + sel.length + " de " + imageLibrary.length + ". Tocá para sumar o sacar.";
+    }
+    imageWidgets.add(render);
+    render();
+    wrap.append(head, note, grid, status);
+    refs.params[def.key] = { input: fileInput, valueSpan: null, def, render };
+    return wrap;
+  }
+
   function buildParamControl(layer, def, refs) {
+    if (def.type === "images") return buildImagesControl(layer, def, refs);
     const wrap = document.createElement("div");
     wrap.className = "param-control";
     const labelRow = document.createElement("span");
@@ -414,9 +552,21 @@
     wrap.appendChild(labelRow);
 
     const currentValue = layer.params[def.key];
-    const input = document.createElement("input");
+    const input = document.createElement(def.type === "select" ? "select" : "input");
 
-    if (def.type === "range") {
+    if (def.type === "select") {
+      (def.options || []).forEach((o) => {
+        const opt = document.createElement("option");
+        opt.value = o.value;
+        opt.textContent = o.label;
+        input.appendChild(opt);
+      });
+      input.value = currentValue;
+      input.addEventListener("change", () => {
+        socket.emit("update-param", { id: layer.id, key: def.key, value: input.value });
+        input.blur();
+      });
+    } else if (def.type === "range") {
       input.type = "range";
       input.min = def.min;
       input.max = def.max;

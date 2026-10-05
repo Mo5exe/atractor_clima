@@ -49,6 +49,85 @@
     hint.style.display = currentState.layers.length === 0 ? "block" : "none";
   });
 
+  // --- Clima ---
+  // Llega del servidor (real u manual) y se suaviza cuadro a cuadro para que
+  // los cambios (por ejemplo, mover un slider) no salten de golpe.
+  let weatherTarget = null;
+  let weatherNow = null;
+  socket.on("weather", (w) => {
+    if (w && w.ok) weatherTarget = normalizeWeather(w);
+  });
+
+  function normalizeWeather(w) {
+    const to = ((w.windDir || 0) + 180) * Math.PI / 180; // hacia dónde sopla
+    return {
+      windX: Math.sin(to),
+      windY: -Math.cos(to),
+      windNorm: Math.min(1, (w.wind || 0) / 60),
+      gustNorm: Math.min(1, Math.max(0, (w.gusts || 0) - (w.wind || 0)) / 40),
+      rainNorm: Math.sqrt(Math.min(1, (w.precip || 0) / 8)),
+      cloud: Math.min(1, (w.cloud || 0) / 100),
+      humidity: Math.min(1, (w.humidity || 0) / 100),
+      tempNorm: Math.max(0, Math.min(1, ((w.temp != null ? w.temp : 18) + 5) / 43)),
+      dayLight: w.dayLight != null ? w.dayLight : 1,
+      fogCode: w.code === 45 || w.code === 48 ? 1 : 0
+    };
+  }
+
+  function stepWeather(dt) {
+    if (!weatherTarget) return;
+    if (!weatherNow) { weatherNow = Object.assign({}, weatherTarget); return; }
+    const k = Math.min(1, dt * 1.5);
+    for (const key of Object.keys(weatherTarget)) {
+      weatherNow[key] += (weatherTarget[key] - weatherNow[key]) * k;
+    }
+    // Mantener la dirección del viento como vector unitario.
+    const len = Math.hypot(weatherNow.windX, weatherNow.windY) || 1;
+    weatherNow.windX /= len;
+    weatherNow.windY /= len;
+  }
+
+  const NIGHT = { r: 4, g: 8, b: 26 };
+  const DAWN = { r: 70, g: 34, b: 52 };
+  const DAY = { r: 28, g: 62, b: 112 };
+  const GRAY = { r: 70, g: 76, b: 88 };
+
+  function backgroundColor(settings) {
+    const base = hexToRgb(settings.bgColor || "#000000");
+    if (!settings.sky || !weatherNow) return rgbToCss(base);
+    const d = weatherNow.dayLight;
+    let sky = d < 0.5 ? mixRgb(NIGHT, DAWN, d * 2) : mixRgb(DAWN, DAY, (d - 0.5) * 2);
+    sky = mixRgb(sky, GRAY, weatherNow.cloud * 0.5 * d);
+    // El color elegido manda; el cielo lo tiñe.
+    return rgbToCss(mixRgb(base, sky, 0.5));
+  }
+
+  function drawFog(w, h, settings) {
+    if (!weatherNow || !settings.fog) return;
+    const wn = weatherNow;
+    const amount = settings.fog * Math.min(0.75,
+      wn.cloud * 0.08 + Math.max(0, wn.humidity - 0.6) * 0.4 + wn.fogCode * 0.35 + wn.rainNorm * 0.08);
+    if (amount < 0.005) return;
+    const c = mixRgb({ r: 50, g: 58, b: 76 }, { r: 175, g: 185, b: 200 }, wn.dayLight);
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, rgbToCss(c, amount * 0.45));
+    g.addColorStop(1, rgbToCss(c, amount));
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  let imageLibrary = []; // [{ id, url, name }]
+  socket.on("images", (list) => { imageLibrary = Array.isArray(list) ? list : []; });
+  function imagesFor(layer) {
+    const chosen = Array.isArray(layer.params.images) ? layer.params.images : [];
+    const list = chosen.length ? imageLibrary.filter((im) => chosen.includes(im.id)) : imageLibrary;
+    return list.map((im) => im.url);
+  }
+
   socket.on("trends", (info) => {
     if (info && Array.isArray(info.trends) && info.trends.length > 0) trends = info.trends;
   });
@@ -142,10 +221,12 @@
     const radius = ((settings.attractorRadius != null ? settings.attractorRadius : 60) / 100) * diag;
     const globalStrength = settings.attractorStrength != null ? settings.attractorStrength : 0.8;
 
+    stepWeather(dt);
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = backgroundColor(settings);
     ctx.fillRect(0, 0, w, h);
+    const climateColorAmount = settings.climateColor != null ? settings.climateColor : 0.5;
 
     currentState.layers.forEach((layer) => {
       if (!layer.enabled) return;
@@ -153,11 +234,16 @@
       if (!inst) return;
       const transform = layer.transform || { originX: 50, originY: 50, rotation: 0 };
       const attract = layer.params.attract != null ? layer.params.attract : 1;
+      const climate = layer.params.climate != null ? layer.params.climate : 1;
       const env = {
         hands: hands.map((pt) => toLayerSpace(pt, w, h, transform)),
         strength: globalStrength * attract,
         radius,
-        words: trends
+        words: trends,
+        images: layer.type === "images" ? imagesFor(layer) : null,
+        weather: weatherNow,
+        climate,
+        tint: climateColorAmount * climate
       };
       try {
         inst.update(dt, t, w, h, layer.params, env);
@@ -171,6 +257,7 @@
       }
     });
 
+    drawFog(w, h, settings);
     if (settings.showCursor !== false) drawCursor(hands);
 
     requestAnimationFrame(loop);

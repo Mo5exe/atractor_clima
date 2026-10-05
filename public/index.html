@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Atractor — Panel de Control</title>
+  <title>Atractor Clima — Panel de Control</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
     <div>
-      <h1>🎛️ Atractor <span class="version">v2</span></h1>
+      <h1>🌦️ Atractor <span class="version">clima</span></h1>
       <p>Panel de control — los cambios se ven en vivo en la ventana de salida.</p>
     </div>
     <div class="row">
@@ -31,7 +31,67 @@
     </aside>
 
     <main>
-      <!-- ===== CÁMARA + ATRACTOR + TRENDING ===== -->
+      <!-- ===== CLIMA ===== -->
+      <section class="card weather-card">
+        <div class="weather-head">
+          <div class="card-title">🌦️ Clima</div>
+          <div class="segmented" role="group" aria-label="Modo del clima">
+            <button id="modeReal" type="button">Clima real</button>
+            <button id="modeManual" type="button">Manual (probar)</button>
+          </div>
+        </div>
+
+        <div class="weather-grid">
+          <div class="weather-now">
+            <div class="weather-city"><span id="cityName">—</span> <button id="cityChangeBtn" class="small-btn" type="button">cambiar ciudad</button></div>
+            <form id="cityForm" class="city-form" hidden>
+              <input id="cityInput" type="text" placeholder="Buscar ciudad… (ej: Rosario, Montevideo)" />
+              <button type="submit" class="primary">Buscar</button>
+            </form>
+            <div id="cityResults" class="city-results"></div>
+            <div class="weather-main">
+              <span id="wxIcon" class="wx-icon">·</span>
+              <div>
+                <div id="wxTemp" class="wx-temp">—</div>
+                <div id="wxDesc" class="wx-desc">cargando…</div>
+              </div>
+            </div>
+            <div class="wx-stats">
+              <div><span class="muted">Viento</span><b><span id="wxWindArrow" class="wind-arrow">↓</span> <span id="wxWind">—</span></b></div>
+              <div><span class="muted">Ráfagas</span><b id="wxGusts">—</b></div>
+              <div><span class="muted">Humedad</span><b id="wxHumidity">—</b></div>
+              <div><span class="muted">Lluvia</span><b id="wxRain">—</b></div>
+              <div><span class="muted">Nubes</span><b id="wxCloud">—</b></div>
+              <div><span class="muted">Luz</span><b id="wxLight">—</b></div>
+            </div>
+            <div id="wxStatus" class="status info">Buscando el clima…</div>
+          </div>
+
+          <div id="manualBox" class="manual-box">
+            <p class="muted small">Mové los sliders para ver cómo reacciona cada capa a cada clima.</p>
+            <div class="manual-grid" id="manualGrid"></div>
+            <div class="row wrap presets-wx" id="wxPresets"></div>
+          </div>
+
+          <div class="weather-look">
+            <div class="param-control">
+              <span class="param-label"><span>Color según la temperatura</span><span class="param-value" id="climateColorValue"></span></span>
+              <input type="range" id="climateColorRange" min="0" max="1" step="0.05" />
+            </div>
+            <div class="param-control">
+              <span class="param-label"><span>Niebla (humedad y nubes)</span><span class="param-value" id="fogValue"></span></span>
+              <input type="range" id="fogRange" min="0" max="1" step="0.05" />
+            </div>
+            <div class="row wrap">
+              <label class="check">Color de fondo <input type="color" id="bgColorInput" /></label>
+              <label class="check"><input type="checkbox" id="skyChk" /> Teñir el fondo según la hora</label>
+            </div>
+            <p class="muted small">Cada capa tiene su propia “Influencia del clima”: en 0 la ignora.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== CÁMARA + ATRACTOR + PALABRAS ===== -->
       <section class="top-grid">
         <div class="card">
           <div class="card-title">🖐️ Cámara y mano</div>
@@ -76,6 +136,19 @@
             <select id="countrySelect" title="País"></select>
             <button id="refreshTrendsBtn" title="Volver a buscar">↻ Actualizar</button>
           </div>
+          <div id="climateBox" class="custom-box">
+            <div class="row wrap">
+              <label class="check"><input type="checkbox" id="climateStateChk" /> Estado del clima</label>
+              <label class="check"><input type="checkbox" id="climatePhrasesChk" /> Frases populares</label>
+              <label class="check"><input type="checkbox" id="climateVoicesChk" /> Voces de la gente (Mastodon)</label>
+            </div>
+            <p class="muted small">Tus palabras para cada clima, una línea por clima. Climas: siempre, lluvia, llovizna, tormenta, calor, templado, fresco, frio, helada, viento, humedad, nublado, despejado, niebla, nieve, noche, dia.</p>
+            <textarea id="climateWords" rows="6" spellcheck="false" placeholder="lluvia: charco, paraguas"></textarea>
+            <div class="row">
+              <button id="saveClimateWordsBtn" class="primary">Usar estas palabras</button>
+              <button id="resetClimateWordsBtn">Restaurar ejemplo</button>
+            </div>
+          </div>
           <div id="customBox" class="custom-box">
             <textarea id="customWords" rows="5" spellcheck="false" placeholder="palabra, otra palabra, frase corta…"></textarea>
             <div class="row">
@@ -102,6 +175,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="js/schemas.js"></script>
   <script src="js/control.js"></script>
+  <script src="js/control-weather.js"></script>
   <script type="module" src="js/control-camera.js"></script>
 </body>
 </html>

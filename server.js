@@ -1,5 +1,5 @@
 /*
- * Atractor — servidor del Editor de Efectos Visuales v2.
+ * Atractor Clima — servidor del Editor de Efectos Visuales vinculado al clima.
  *
  * - Sirve /public (index.html = panel de control, output.html = salida visual).
  * - Mantiene el estado autoritativo: capas de efectos + ajustes globales.
@@ -18,6 +18,8 @@ const { Server } = require("socket.io");
 
 const { SCHEMAS, NAMES, DEFAULT_SETTINGS } = require("./public/js/schemas.js");
 const { getWords } = require("./word-sources.js");
+const { getRealWeather, manualWeather, searchCity, categories } = require("./weather.js");
+const { getClimateWords } = require("./climate-words.js");
 
 const app = express();
 const server = http.createServer(app);
@@ -26,6 +28,50 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, "public")));
 // MediaPipe se sirve desde node_modules para no depender de un CDN.
 app.use("/mediapipe", express.static(path.join(__dirname, "node_modules", "@mediapipe", "tasks-vision")));
+
+// ---------------------------------------------------------------------------
+// Imágenes subidas (para la capa "Imágenes"). Se guardan en data/images.
+// ---------------------------------------------------------------------------
+const IMAGES_DIR = path.join(__dirname, "data", "images");
+fs.mkdirSync(IMAGES_DIR, { recursive: true });
+app.use("/uploads", express.static(IMAGES_DIR, { maxAge: "1h" }));
+
+// Reconocer el tipo por los primeros bytes (no confiar en el nombre).
+function imageType(buf) {
+  if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "png";
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "jpg";
+  if (buf.length > 6 && buf.slice(0, 3).toString("ascii") === "GIF") return "gif";
+  if (buf.length > 12 && buf.slice(0, 4).toString("ascii") === "RIFF" && buf.slice(8, 12).toString("ascii") === "WEBP") return "webp";
+  return null;
+}
+
+function listImages() {
+  try {
+    return fs.readdirSync(IMAGES_DIR)
+      .filter((f) => /\.(png|jpg|gif|webp)$/i.test(f))
+      .map((f) => {
+        const st = fs.statSync(path.join(IMAGES_DIR, f));
+        const label = f.replace(/^[0-9a-f]{8}-/, "").replace(/\.[a-z]+$/i, "");
+        return { id: f, url: "/uploads/" + encodeURIComponent(f), name: label, at: st.mtimeMs };
+      })
+      .sort((a, b) => a.at - b.at);
+  } catch (e) {
+    return [];
+  }
+}
+
+app.post("/api/images", express.raw({ type: () => true, limit: "20mb" }), (req, res) => {
+  const buf = req.body;
+  const type = Buffer.isBuffer(buf) ? imageType(buf) : null;
+  if (!type) return res.status(400).json({ ok: false, error: "No es una imagen PNG, JPG, GIF o WebP." });
+  const original = String(req.get("X-Filename") || "imagen");
+  let base = decodeURIComponent(original).replace(/\.[a-z0-9]+$/i, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "imagen";
+  const id = randomUUID().slice(0, 8) + "-" + base + "." + type;
+  fs.writeFileSync(path.join(IMAGES_DIR, id), buf);
+  io.emit("images", listImages());
+  res.json({ ok: true, id });
+});
 
 // ---------------------------------------------------------------------------
 // Estado
@@ -39,7 +85,7 @@ const ROTATE_STEP = 45;
 
 function defaultParams(type) {
   const params = {};
-  (SCHEMAS[type] || []).forEach((def) => { params[def.key] = def.default; });
+  (SCHEMAS[type] || []).forEach((def) => { params[def.key] = Array.isArray(def.default) ? def.default.slice() : def.default; });
   return params;
 }
 
@@ -128,14 +174,72 @@ let wordsRequest = 0;
 async function refreshTrends() {
   const req = ++wordsRequest;
   const settings = Object.assign({}, state.settings);
-  const result = await getWords(settings);
+  const result = settings.wordSource === "clima"
+    ? await getClimateWords(weatherInfo, settings)
+    : await getWords(settings);
   // Si mientras tanto cambiaron la fuente o el país, descartar este resultado.
   if (req !== wordsRequest) return;
   trendsInfo = Object.assign({ country: settings.trendsCountry, wordSource: settings.wordSource }, result);
   io.emit("trends", trendsInfo);
 }
 
-const WORD_SETTINGS = ["wordSource", "trendsCountry", "customWords"];
+const WORD_SETTINGS = ["wordSource", "trendsCountry", "customWords", "climateState", "climatePhrases", "climateVoices", "climateWords"];
+
+// ---------------------------------------------------------------------------
+// Clima
+// ---------------------------------------------------------------------------
+let weatherInfo = { ok: false, mode: state.settings.weatherMode, city: state.settings.city.name, error: null };
+let realWeatherCache = null; // último clima real que funcionó
+let lastCategories = "";
+
+function emitWeather() {
+  io.emit("weather", weatherInfo);
+  // Si cambió el "tipo" de clima (llueve, hace calor...), actualizar las palabras.
+  const cats = weatherInfo.ok ? categories(weatherInfo).join(",") : "";
+  if (state.settings.wordSource === "clima" && cats !== lastCategories) {
+    lastCategories = cats;
+    refreshTrends();
+  }
+}
+
+async function refreshWeather() {
+  const s = state.settings;
+  if (s.weatherMode === "manual") {
+    weatherInfo = manualWeather(s.manualWeather, s.city && s.city.name);
+    emitWeather();
+    return;
+  }
+  const city = s.city;
+  try {
+    const w = await getRealWeather(city);
+    if (state.settings.weatherMode !== "real" || state.settings.city !== city) return; // cambió mientras tanto
+    realWeatherCache = w;
+    weatherInfo = w;
+    console.log("[clima] " + city.name + ": " + w.desc + ", " + Math.round(w.temp) + "°C, viento " + Math.round(w.wind) + " km/h");
+  } catch (err) {
+    console.warn("[clima] No se pudo leer el clima de " + city.name + ": " + err.message);
+    if (realWeatherCache && realWeatherCache.city === city.name) {
+      weatherInfo = Object.assign({}, realWeatherCache, { stale: true });
+    } else {
+      // Sin internet: usar los valores del modo manual para que todo siga funcionando.
+      weatherInfo = Object.assign(manualWeather(s.manualWeather, city.name), { mode: "real", offline: true, error: err.message });
+    }
+  }
+  emitWeather();
+}
+
+refreshWeather();
+setInterval(() => { if (state.settings.weatherMode === "real") refreshWeather(); }, 10 * 60 * 1000);
+// La luz del día cambia aunque el clima no: recalcularla cada minuto.
+setInterval(() => {
+  if (state.settings.weatherMode === "real" && weatherInfo.ok && weatherInfo.sunrise) {
+    const { dayLightFrom } = require("./weather.js");
+    weatherInfo.dayLight = dayLightFrom(new Date(), weatherInfo.sunrise, weatherInfo.sunset, weatherInfo.isDay);
+    emitWeather();
+  }
+}, 60 * 1000);
+
+const WEATHER_SETTINGS = ["weatherMode", "manualWeather", "city"];
 
 refreshTrends();
 setInterval(refreshTrends, 3 * 60 * 1000);
@@ -147,6 +251,8 @@ io.on("connection", (socket) => {
   socket.emit("state", state);
   socket.emit("presets", presetSummaries());
   socket.emit("trends", trendsInfo);
+  socket.emit("weather", weatherInfo);
+  socket.emit("images", listImages());
 
   socket.on("add-layer", (type) => {
     try {
@@ -214,11 +320,18 @@ io.on("connection", (socket) => {
   });
 
   socket.on("update-setting", (payload) => {
-    const { key, value } = payload || {};
+    const key = payload && payload.key;
+    let value = payload && payload.value;
     if (!Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)) return;
     const changedWords = WORD_SETTINGS.includes(key) && value !== state.settings[key];
-    state.settings[key] = key === "customWords" ? String(value).slice(0, 5000) : value;
+    if (key === "manualWeather" || key === "city") {
+      if (!value || typeof value !== "object") return;
+      if (key === "city" && (!isFinite(value.lat) || !isFinite(value.lon))) return;
+      value = key === "manualWeather" ? Object.assign({}, state.settings.manualWeather, value) : value;
+    }
+    state.settings[key] = (key === "customWords" || key === "climateWords") ? String(value).slice(0, 5000) : value;
     broadcastState();
+    if (WEATHER_SETTINGS.includes(key)) refreshWeather();
     if (changedWords) {
       if (key !== "customWords") {
         trendsInfo = Object.assign({}, trendsInfo, { source: "cargando", country: state.settings.trendsCountry, wordSource: state.settings.wordSource });
@@ -229,6 +342,27 @@ io.on("connection", (socket) => {
   });
 
   socket.on("refresh-trends", () => refreshTrends());
+  socket.on("refresh-weather", () => refreshWeather());
+
+  socket.on("delete-image", (id) => {
+    const file = path.basename(String(id || ""));
+    if (!/\.(png|jpg|gif|webp)$/i.test(file)) return;
+    try { fs.unlinkSync(path.join(IMAGES_DIR, file)); } catch (e) { /* ya no estaba */ }
+    // Sacarla también de las capas que la usaban.
+    state.layers.forEach((l) => {
+      if (Array.isArray(l.params.images)) l.params.images = l.params.images.filter((x) => x !== file);
+    });
+    io.emit("images", listImages());
+    broadcastState();
+  });
+
+  socket.on("search-city", async (name) => {
+    try {
+      socket.emit("city-results", { query: name, results: await searchCity(name) });
+    } catch (err) {
+      socket.emit("city-results", { query: name, results: [], error: err.message });
+    }
+  });
 
   // Posición de las manos (normalizada 0..1). Sólo se reenvía, no se guarda.
   socket.on("hands", (payload) => {
@@ -259,6 +393,7 @@ io.on("connection", (socket) => {
     broadcastState();
     io.emit("preset-loaded", id);
     if (WORD_SETTINGS.some((k) => state.settings[k] !== prev[k])) refreshTrends();
+    if (WEATHER_SETTINGS.some((k) => JSON.stringify(state.settings[k]) !== JSON.stringify(prev[k]))) refreshWeather();
   });
 
   socket.on("rename-preset", (payload) => {
@@ -282,6 +417,10 @@ io.on("connection", (socket) => {
 // Arranque. Si lo lanza run.bat (ABRIR_NAVEGADOR=1), abre el panel en una
 // pestaña nueva de Google Chrome (o en el navegador predeterminado si no hay Chrome).
 // ---------------------------------------------------------------------------
+// Una instalación tiene que seguir andando: si algo falla, se anota y sigue.
+process.on("uncaughtException", (err) => console.error("[error]", err && err.stack ? err.stack : err));
+process.on("unhandledRejection", (err) => console.error("[error]", err && err.stack ? err.stack : err));
+
 const PORT = process.env.PORT || 3000;
 const PANEL_URL = "http://localhost:" + PORT + "/index.html";
 
@@ -318,7 +457,7 @@ server.on("error", (err) => {
 
 server.listen(PORT, () => {
   console.log("");
-  console.log("=== ATRACTOR - Editor de Efectos Visuales v2 ===");
+  console.log("=== ATRACTOR CLIMA - Editor de Efectos Visuales ===");
   console.log("Panel de control:  " + PANEL_URL);
   console.log("Salida visual:     http://localhost:" + PORT + "/output.html");
   console.log("(Para cerrar: cerrá esta ventana o apretá Ctrl + C)");
