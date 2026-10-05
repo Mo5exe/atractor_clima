@@ -979,6 +979,93 @@ function getImage(url) {
   return img.complete && img.naturalWidth > 0 ? img : null;
 }
 
+// Quitar el fondo de una imagen que NO tiene transparencia real (por ejemplo,
+// un PNG con los "cuadraditos" de transparencia dibujados, o un fondo blanco):
+//  1. mira los colores del borde de la imagen (ahí está el fondo),
+//  2. desde el borde "inunda" hacia adentro sólo por píxeles de esos colores,
+//  3. los vuelve transparentes. Lo que no toca el borde (el dibujo) queda igual.
+// Si la imagen ya tiene transparencia de verdad en el borde, no hace nada.
+const cleanCache = new Map(); // "url|tol" -> canvas
+function cleanedImage(img, url, tol) {
+  const key = url + "|" + tol;
+  let c = cleanCache.get(key);
+  if (c) return c;
+  if (cleanCache.size > 60) cleanCache.clear();
+  const maxSide = 1200;
+  const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const W = Math.max(1, Math.round(img.naturalWidth * k));
+  const H = Math.max(1, Math.round(img.naturalHeight * k));
+  c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  c.naturalWidth = W; c.naturalHeight = H;
+  const x = c.getContext("2d", { willReadFrequently: true });
+  x.drawImage(img, 0, 0, W, H);
+  let data;
+  try { data = x.getImageData(0, 0, W, H); } catch (e) { cleanCache.set(key, img); return img; }
+  const px = data.data;
+
+  // 1. Colores del borde.
+  const border = [];
+  for (let i = 0; i < W; i++) { border.push(i, (H - 1) * W + i); }
+  for (let j = 1; j < H - 1; j++) { border.push(j * W, j * W + W - 1); }
+  let transparent = 0;
+  const bins = new Map();
+  for (const idx of border) {
+    const o = idx * 4;
+    if (px[o + 3] < 16) { transparent++; continue; }
+    const bin = ((px[o] >> 4) << 8) | ((px[o + 1] >> 4) << 4) | (px[o + 2] >> 4);
+    const b = bins.get(bin) || { n: 0, r: 0, g: 0, b: 0 };
+    b.n++; b.r += px[o]; b.g += px[o + 1]; b.b += px[o + 2];
+    bins.set(bin, b);
+  }
+  const opaque = border.length - transparent;
+  if (opaque < border.length * 0.5) { cleanCache.set(key, img); return img; } // ya es transparente
+  const sorted = Array.from(bins.values()).sort((a, b) => b.n - a.n);
+  const palette = [];
+  let covered = 0;
+  for (const b of sorted) {
+    palette.push([b.r / b.n, b.g / b.n, b.b / b.n]);
+    covered += b.n;
+    if (covered >= opaque * 0.92 || palette.length >= 8) break;
+  }
+  const tol2 = tol * tol;
+  const isBg = (o) => {
+    if (px[o + 3] < 16) return true;
+    for (const q of palette) {
+      const dr = px[o] - q[0], dg = px[o + 1] - q[1], db = px[o + 2] - q[2];
+      if (dr * dr + dg * dg + db * db <= tol2) return true;
+    }
+    return false;
+  };
+
+  // 2. Inundar desde el borde.
+  const seen = new Uint8Array(W * H);
+  const queue = new Int32Array(W * H);
+  let head = 0, tail = 0;
+  for (const idx of border) {
+    if (!seen[idx] && isBg(idx * 4)) { seen[idx] = 1; queue[tail++] = idx; }
+  }
+  while (head < tail) {
+    const idx = queue[head++];
+    px[idx * 4 + 3] = 0; // 3. transparente
+    const cx = idx % W, cy = (idx / W) | 0;
+    if (cx > 0) { const n = idx - 1; if (!seen[n] && isBg(n * 4)) { seen[n] = 1; queue[tail++] = n; } }
+    if (cx < W - 1) { const n = idx + 1; if (!seen[n] && isBg(n * 4)) { seen[n] = 1; queue[tail++] = n; } }
+    if (cy > 0) { const n = idx - W; if (!seen[n] && isBg(n * 4)) { seen[n] = 1; queue[tail++] = n; } }
+    if (cy < H - 1) { const n = idx + W; if (!seen[n] && isBg(n * 4)) { seen[n] = 1; queue[tail++] = n; } }
+  }
+  // Suavizar el borde del dibujo: los píxeles pegados al fondo quedan semitransparentes.
+  for (let idx = 0; idx < W * H; idx++) {
+    if (seen[idx]) continue;
+    const cx = idx % W, cy = (idx / W) | 0;
+    const nearBg = (cx > 0 && seen[idx - 1]) || (cx < W - 1 && seen[idx + 1]) || (cy > 0 && seen[idx - W]) || (cy < H - 1 && seen[idx + W]);
+    if (nearBg) px[idx * 4 + 3] = Math.round(px[idx * 4 + 3] * 0.6);
+  }
+  x.putImageData(data, 0, 0);
+  cleanCache.set(key, c);
+  return c;
+}
+
 // Imagen teñida: se pinta el color encima respetando la transparencia del PNG.
 const tintCache = new Map(); // "url|color|amount" -> canvas
 function tintedImage(img, url, color, amount) {
@@ -1110,6 +1197,7 @@ class ImagesEffect {
   }
   // Versión de la imagen con el color que corresponda según "Color".
   colored(img, url, p, env, hueStep) {
+    if (p.removeBg !== false) url = url + "#sin-fondo" + Math.round(p.bgTolerance || 30);
     const mode = p.colorMode || "original";
     if (mode === "original") return img;
     let color;
@@ -1125,6 +1213,7 @@ class ImagesEffect {
       for (const f of this.floating.values()) {
         let img = getImage(f.url);
         if (!img) continue;
+        if (p.removeBg !== false) img = cleanedImage(img, f.url, Math.round(p.bgTolerance || 30));
         img = this.colored(img, f.url, p, env, f.hueStep);
         this.drawImage(ctx, img, f.x, f.y, p.size * f.scale * (1 + 0.25 * f.near), f.rot || 0, p.fadeTo, p.blur);
       }
@@ -1133,6 +1222,7 @@ class ImagesEffect {
     for (const it of this.items) {
       let img = getImage(it.url);
       if (!img) continue;
+      if (p.removeBg !== false) img = cleanedImage(img, it.url, Math.round(p.bgTolerance || 30));
       img = this.colored(img, it.url, p, env, it.hueStep);
       let scale, alpha, blur;
       if (!it.flying) {

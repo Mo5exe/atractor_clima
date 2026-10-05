@@ -121,8 +121,8 @@
       { key: "life", label: "Vida (s)", type: "range", min: 0.3, max: 15, step: 0.1, default: 5 },
       { key: "originX", label: "Origen X (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
       { key: "originY", label: "Origen Y (%)", type: "range", min: 0, max: 100, step: 1, default: 50 },
-      { key: "colorMode", label: "Colores", type: "select", default: "rainbow", options: [
-        { value: "single", label: "Todos del mismo color" },
+      { key: "colorMode", label: "Colores de los píxeles", type: "select", default: "single", options: [
+        { value: "single", label: "Un solo color (el de abajo)" },
         { value: "rainbow", label: "Todos los colores" },
         { value: "palette", label: "Tonos del color elegido" },
         { value: "climate", label: "Según la temperatura" }
@@ -132,10 +132,12 @@
       { key: "flicker", label: "Parpadeo", type: "checkbox", default: false },
       ATTRACT,
       CLIMATE,
-      { key: "color", label: "Color", type: "color", default: "#39ff9c" }
+      { key: "color", label: "Color de los píxeles", type: "color", default: "#39ff9c" }
     ],
     images: [
       { key: "images", label: "Imágenes de esta capa", type: "images", default: [] },
+      { key: "removeBg", label: "Quitar fondo / cuadraditos", type: "checkbox", default: true },
+      { key: "bgTolerance", label: "Tolerancia al quitar el fondo", type: "range", min: 2, max: 120, step: 1, default: 30 },
       { key: "mode", label: "Cuándo aparecen", type: "select", default: "touch", options: [
         { value: "touch", label: "Al tocar (mano o clic)" },
         { value: "always", label: "Siempre visibles (flotando)" }
