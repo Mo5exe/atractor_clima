@@ -296,11 +296,13 @@
       MUSIC,
       { key: "colorMode", label: "Colores del texto", type: "select", default: "single", options: [
         { value: "single", label: "Un color" },
-        { value: "gradient", label: "Degradé entre dos colores" },
+        { value: "gradient", label: "Degradé de 2 colores" },
+        { value: "gradient3", label: "Degradé de 3 colores" },
         { value: "rainbow", label: "Arcoíris que va cambiando" }
       ] },
-      { key: "color", label: "Color", type: "color", default: "#ffffff" },
+      { key: "color", label: "Color (o primer color del degradé)", type: "color", default: "#ffffff" },
       { key: "colorB", label: "Segundo color del degradé", type: "color", default: "#5cc8ff" },
+      { key: "colorC", label: "Tercer color (degradé de 3)", type: "color", default: "#ff5c8a" },
       { key: "color2", label: "Color del brillo y del borde", type: "color", default: "#e52495" }
     ],
     names: [

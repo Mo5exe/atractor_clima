@@ -1974,8 +1974,9 @@ class TextEffect {
     const t = (env && env.transform) || null;
     const pos = p.position || "center";
     // "Donde pongas el punto": la capa ya viene movida por el punto de origen.
+    // El punto de origen de la capa siempre mueve el texto (desde la posición elegida).
     if (pos === "free" || !t) return { x: w / 2, y: h / 2, ax: "center", ay: "middle" };
-    const ox = (t.originX / 100) * w - w / 2, oy = (t.originY / 100) * h - h / 2;
+    const ox = 0, oy = 0;
     let x = w / 2, y = h / 2, ax = "center", ay = "middle";
     if (pos.startsWith("top")) { y = m; ay = "top"; }
     if (pos.startsWith("bottom")) { y = h - m; ay = "bottom"; }
@@ -2043,7 +2044,12 @@ class TextEffect {
           ctx.strokeText(c, px, py);
         }
         let cc = col;
-        if (p.colorMode === "gradient") cc = mixRgb(col, hexToRgb(p.colorB || "#5cc8ff"), m.chars.length > 1 ? ci / (m.chars.length - 1) : 0);
+        const gt = m.chars.length > 1 ? ci / (m.chars.length - 1) : 0;
+        if (p.colorMode === "gradient") cc = mixRgb(col, hexToRgb(p.colorB || "#5cc8ff"), gt);
+        else if (p.colorMode === "gradient3") {
+          const cB = hexToRgb(p.colorB || "#5cc8ff"), cC = hexToRgb(p.colorC || "#ff5c8a");
+          cc = gt < 0.5 ? mixRgb(col, cB, gt * 2) : mixRgb(cB, cC, (gt - 0.5) * 2);
+        }
         else if (p.colorMode === "rainbow") cc = hueRgb((this.t * 60 + ci * 25 + li * 40) % 360, 0.62);
         ctx.fillStyle = rgbToCss(cc);
         ctx.fillText(c, px, py);
