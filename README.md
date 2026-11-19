@@ -150,13 +150,16 @@ En las fuentes de arte los nombres de artistas, lugares y obras quedan juntos
   el punto" (arrastrás el punto de origen de la capa). Se ajusta tamaño, letra
   (moderna, fina, clásica, máquina de escribir, impacto), espacio entre letras, brillo,
   borde, opacidad y una respiración suave. Late con la música, y las letras se apartan
-  cuando alguien toca cerca. Podés poner varias capas de texto (por ejemplo el nombre
+  cuando alguien toca cerca. Puede quedar fijo o **aparecer y desaparecer con
+  desenfoque** (elegís cuánto se ve, cuánto se oculta y cuánto desenfoque). Podés poner varias capas de texto (por ejemplo el nombre
   del evento arriba y la fecha abajo).
 - **Nombres que aparecen (3)**: tres nombres o palabras fijas que aparecen siempre, en
   3 lugares de la pantalla (izquierda, centro y derecha cada uno a la altura que elijas,
   en fila, en columna, en diagonal, en triángulo o al azar),
   las 3 juntas o de a una. Aparecen **tipeando con cursor**, **letra por letra con
-  destellos**, **descifrándose** o **suave**; se quedan un rato y se van en destellos.
+  destellos**, **descifrándose** o **suave**; se quedan un rato y se van desenfocándose
+  suave, entre destellos. Con "Siempre las 3 en pantalla", antes de que un nombre se
+  vaya ya aparece el siguiente, así nunca queda vacío.
   Los destellos siguen a la mano. Nunca se enciman con un "Texto fijo": si caen encima
   o muy cerca, se corren solos hacia arriba o hacia abajo.
 

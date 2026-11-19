@@ -289,6 +289,11 @@
       { key: "opacity", label: "Opacidad", type: "range", min: 0, max: 1, step: 0.01, default: 1 },
       { key: "glow", label: "Brillo alrededor", type: "range", min: 0, max: 80, step: 1, default: 18 },
       { key: "outline", label: "Borde", type: "range", min: 0, max: 12, step: 0.5, default: 0 },
+      { key: "cycle", label: "Aparece y desaparece con desenfoque", type: "checkbox", default: false },
+      { key: "showTime", label: "Cuánto se ve (s)", type: "range", min: 0.5, max: 30, step: 0.5, default: 5 },
+      { key: "hideTime", label: "Cuánto se oculta (s)", type: "range", min: 0, max: 30, step: 0.5, default: 1.5 },
+      { key: "fadeTime", label: "Cuánto tarda en aparecer y desaparecer (s)", type: "range", min: 0.2, max: 5, step: 0.1, default: 1.2 },
+      { key: "cycleBlur", label: "Desenfoque al aparecer y desaparecer", type: "range", min: 0, max: 60, step: 1, default: 20 },
       { key: "breath", label: "Respiración (late suave)", type: "range", min: 0, max: 0.3, step: 0.01, default: 0.03 },
       { key: "push", label: "Las letras se apartan de la mano", type: "range", min: 0, max: 1, step: 0.05, default: 0.5 },
       ATTRACT,
@@ -321,7 +326,11 @@
       { key: "y2", label: "Altura del nombre 2, centro (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 74 },
       { key: "y3", label: "Altura del nombre 3, derecha (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 50 },
       { key: "tilt", label: "Inclinación hacia arriba, al azar hasta (°)", type: "range", min: 0, max: 45, step: 1, default: 45 },
-      { key: "together", label: "Aparecen las 3 a la vez (si no, de a una)", type: "checkbox", default: false },
+      { key: "flow", label: "Cómo se turnan", type: "select", default: "always", options: [
+        { value: "always", label: "Siempre las 3 en pantalla (antes de que una se vaya, aparece otra)" },
+        { value: "together", label: "Las 3 a la vez (aparecen y se van juntas)" },
+        { value: "oneByOne", label: "De a una" }
+      ] },
       { key: "style", label: "Cómo aparecen", type: "select", default: "type", options: [
         { value: "type", label: "Tipeando, con cursor" },
         { value: "sparkle", label: "Letra por letra, con destellos" },
@@ -330,6 +339,8 @@
       ] },
       { key: "speed", label: "Velocidad de escritura (letras por segundo)", type: "range", min: 1, max: 40, step: 1, default: 10 },
       { key: "hold", label: "Cuánto quedan quietas (s)", type: "range", min: 0.5, max: 20, step: 0.5, default: 3 },
+      { key: "blurOut", label: "Desenfoque al desaparecer (0 = sin desenfoque)", type: "range", min: 0, max: 40, step: 1, default: 14 },
+      { key: "outTime", label: "Cuánto tarda en desaparecer (s)", type: "range", min: 0.2, max: 4, step: 0.1, default: 1.2 },
       { key: "gap", label: "Pausa entre una y otra (s)", type: "range", min: 0, max: 10, step: 0.25, default: 0.75 },
       { key: "size", label: "Tamaño", type: "range", min: 12, max: 300, step: 1, default: 80 },
       { key: "font", label: "Letra", type: "select", default: "sans", options: [

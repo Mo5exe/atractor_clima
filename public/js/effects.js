@@ -2024,11 +2024,26 @@ class TextEffect {
       const maxW = Math.max(...measured.map((m) => m.total), 0);
       const left = a.ax === "left" ? a.x : a.ax === "right" ? a.x - maxW : a.x - maxW / 2;
       const o = layerOffset(env, w, h);
-      TEXT_BOXES.set(this, { x0: left + o.x, y0: top + o.y, x1: left + maxW + o.x, y1: top + blockH + o.y, size, at: performance.now() });
+      // Caja "quieta": sin la respiración ni el latido, así los nombres no tiemblan.
+      const f = (Math.max(4, p.size * Math.min(w, h) / 720)) / size;
+      const cx = left + maxW / 2 + o.x, cy = top + blockH / 2 + o.y;
+      const hw = (maxW * f) / 2, hh = (blockH * f) / 2;
+      TEXT_BOXES.set(this, { x0: Math.round(cx - hw), y0: Math.round(cy - hh), x1: Math.round(cx + hw), y1: Math.round(cy + hh), size: size * f, at: performance.now() });
     }
     const col = climateRgb(p.color, env);
     const col2 = hexToRgb(p.color2);
-    ctx.globalAlpha = Math.max(0, Math.min(1, p.opacity));
+    // Aparece y desaparece con desenfoque (si está activado).
+    let vis = 1;
+    if (p.cycle) {
+      const ft = Math.max(0.1, p.fadeTime), show = Math.max(0, p.showTime), hide = Math.max(0, p.hideTime);
+      const period = ft * 2 + show + hide;
+      const c = this.t % period;
+      vis = c < ft ? c / ft : c < ft + show ? 1 : c < ft * 2 + show ? 1 - (c - ft - show) / ft : 0;
+      vis = vis * vis * (3 - 2 * vis);
+      if (vis <= 0.001) { ctx.restore(); return; }
+      if (p.cycleBlur > 0 && vis < 1) ctx.filter = "blur(" + ((1 - vis) * p.cycleBlur * size / 110).toFixed(1) + "px)";
+    }
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.opacity)) * vis;
     ctx.lineJoin = "round";
     const pushR = Math.max(60, (env && env.radius) || 120) * 1.2;
     const k = Math.min(1, (this.dt || 0.016) * 8);
@@ -2086,7 +2101,7 @@ class TextEffect {
 // ---------------------------------------------------------------------------
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+=?";
 class NamesEffect {
-  constructor() { this.slots = []; this.sparks = []; this.t = 0; this.turn = 0; this.wait = 0.3; this.beat = 0; }
+  constructor() { this.slots = []; this.sparks = []; this.t = 0; this.turn = 0; this.wait = 0.3; this.beat = 0; this.nextAt = [0, 0.5, 1]; }
   places(layout, p) {
     if (layout === "heights") return [[0.2, p.y1 / 100], [0.5, p.y2 / 100], [0.8, p.y3 / 100]];
     const P = {
@@ -2105,9 +2120,15 @@ class NamesEffect {
     let x, y;
     if (pos) { x = pos[i][0] * w; y = pos[i][1] * h; }
     else { x = w * (0.18 + Math.random() * 0.64); y = h * (0.18 + Math.random() * 0.64); }
+    // Si vuelve a aparecer mientras la anterior se va, se corre un poco para no pisarla.
+    if (pos && this.slots.some((o) => o.i === i)) {
+      x += (Math.random() - 0.5) * w * 0.16;
+      y += (Math.random() < 0.5 ? -1 : 1) * h * (0.1 + Math.random() * 0.06);
+    }
     // Cada vez que aparece se inclina hacia arriba un ángulo al azar.
     const ang = -Math.random() * (p.tilt || 0) * Math.PI / 180;
-    this.slots[i] = { text: texts[i], x, y, ang, age: 0, phase: "in", shown: 0, out: 0 };
+    const holdK = p.flow === "always" ? 0.75 + Math.random() * 0.5 : 1;
+    this.slots.push({ i, text: texts[i], x, y, ang, holdK, age: 0, phase: "in", shown: 0, out: 0 });
   }
   // Que los nombres no se encimen ni queden pegados a un texto fijo: si lo
   // tocan, se corren hacia arriba o hacia abajo (lo que quede más cerca y entre).
@@ -2117,7 +2138,9 @@ class NamesEffect {
     this.slots.forEach((sl) => {
       if (!sl) return;
       if (sl.baseY == null) sl.baseY = sl.y;
-      const W = sl.wpx || Array.from(sl.text).length * fontSize * 0.62, H = fontSize * 1.1;
+      // Medida fija del nombre (sin el latido de la música) para que no tiemble.
+      if (!sl.wFix && sl.wpx) sl.wFix = sl.wpx;
+      const W = sl.wFix || Array.from(sl.text).length * fontSize * 0.62, H = fontSize * 1.1;
       const c = Math.abs(Math.cos(sl.ang || 0)), sn = Math.abs(Math.sin(sl.ang || 0));
       const hw = (W / 2) * c + (H / 2) * sn, hh = (W / 2) * sn + (H / 2) * c;
       const x = Math.max(hw + 8, Math.min(w - hw - 8, sl.x));
@@ -2130,15 +2153,20 @@ class NamesEffect {
           if (sx + hw > b.x0 - gap && sx - hw < b.x1 + gap && sy + hh > b.y0 - gap && sy - hh < b.y1 + gap) {
             const up = b.y0 - gap - hh - o.y, down = b.y1 + gap + hh - o.y;
             const upOk = up - hh >= 0, downOk = down + hh <= h;
-            target = (upOk && (!downOk || Math.abs(up - target) < Math.abs(down - target))) ? up : (downOk ? down : up);
+            // Una vez que eligió lado (arriba o abajo) se queda ahí: no salta.
+            if (!sl.side) sl.side = (upOk && (!downOk || Math.abs(up - target) < Math.abs(down - target))) ? "up" : (downOk ? "down" : "up");
+            if (sl.side === "up" && !upOk && downOk) sl.side = "down";
+            if (sl.side === "down" && !downOk && upOk) sl.side = "up";
+            target = sl.side === "up" ? up : down;
             moved = true;
           }
         }
         if (!moved) break;
       }
       sl.x = x;
-      if (sl.placed) sl.y += (target - sl.y) * Math.min(1, dt * 6);
-      else { sl.y = target; sl.placed = true; }
+      if (!sl.placed) { sl.y = target; sl.placed = true; }
+      else if (Math.abs(target - sl.y) < 1.5) sl.y = target;
+      else sl.y += (target - sl.y) * Math.min(1, dt * 6);
     });
   }
   burst(x, y, n, p, spread) {
@@ -2157,20 +2185,26 @@ class NamesEffect {
     const texts = this.texts(p);
     const valid = [0, 1, 2].filter((i) => texts[i]);
     // Si cambiaste el texto, se reescribe.
-    this.slots.forEach((sl, i) => { if (sl && sl.text !== texts[i]) this.slots[i] = null; });
+    this.slots = this.slots.filter((sl) => sl && sl.text === texts[sl.i]);
     // ¿Quién empieza ahora?
-    const active = this.slots.filter(Boolean).length;
-    if (!active) {
+    if (p.flow === "always") {
+      // Siempre las 3: cada nombre tiene su ritmo; cuando uno empieza a irse,
+      // ya aparece el siguiente, así nunca queda la pantalla vacía.
+      valid.forEach((i) => {
+        const alive = this.slots.some((sl) => sl.i === i && sl.phase !== "out");
+        if (!alive && this.t >= (this.nextAt[i] || 0)) this.start(i, p, w, h);
+      });
+    } else if (!this.slots.length) {
       this.wait -= dt;
       if (this.wait <= 0 && valid.length) {
-        if (p.together) valid.forEach((i) => this.start(i, p, w, h));
+        if (p.flow === "together" || p.together) valid.forEach((i) => this.start(i, p, w, h));
         else { const i = valid[this.turn % valid.length]; this.turn++; this.start(i, p, w, h); }
       }
     }
     const fontSize = Math.max(6, p.size * Math.min(w, h) / 720);
     const charW = fontSize * 0.6;
     this.avoidText(dt, w, h, fontSize, env);
-    this.slots.forEach((sl, i) => {
+    this.slots.forEach((sl) => {
       if (!sl) return;
       sl.age += dt;
       const n = Array.from(sl.text).length;
@@ -2185,12 +2219,13 @@ class NamesEffect {
         }
         if (sl.shown >= n) { sl.phase = "hold"; sl.age = 0; if (p.sparkles > 0) this.burst(sl.x, sl.y, Math.round(p.sparkles / 3), p, n * charW); }
       } else if (sl.phase === "hold") {
-        if (sl.age >= p.hold) { sl.phase = "out"; sl.age = 0; if (p.sparkles > 0) this.burst(sl.x, sl.y, p.sparkles, p, n * charW); }
+        if (sl.age >= p.hold * (sl.holdK || 1)) { sl.phase = "out"; sl.age = 0; if (p.sparkles > 0) this.burst(sl.x, sl.y, p.sparkles, p, n * charW); }
       } else {
-        sl.out = Math.min(1, sl.age / 0.6);
-        if (sl.out >= 1) { this.slots[i] = null; this.wait = p.gap; }
+        sl.out = Math.min(1, sl.age / Math.max(0.1, p.outTime || 0.6));
+        if (sl.out >= 1) { sl.done = true; this.wait = p.gap; }
       }
     });
+    this.slots = this.slots.filter((sl) => !sl.done);
     // Destellos: se mueven, frenan y se apagan; la mano los atrae.
     for (const sp of this.sparks) {
       sp.life -= dt;
@@ -2217,19 +2252,26 @@ class NamesEffect {
     ctx.font = font;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    this.slots.forEach((sl, si) => {
+    this.slots.forEach((sl) => {
       if (!sl) return;
+      const si = sl.i;
       const col0 = p.colorMode === "each" ? base[si] : base[0];
       const chars = Array.from(sl.text);
       const widths = chars.map((c) => ctx.measureText(c).width);
       const total = widths.reduce((a, b) => a + b, 0);
       sl.wpx = total;
       ctx.save();
+      // Al irse, se desenfoca suave mientras se apaga.
+      if (sl.phase === "out" && p.blurOut > 0) {
+        const e = sl.out * sl.out * (3 - 2 * sl.out);
+        ctx.filter = "blur(" + (e * p.blurOut * fontSize / 80).toFixed(1) + "px)";
+      }
       ctx.translate(sl.x, sl.y);
       ctx.rotate(sl.ang || 0);
       ctx.translate(-sl.x, -sl.y);
       let x = sl.x - total / 2;
-      const fadeOut = 1 - (sl.out || 0);
+      const fo = sl.out || 0;
+      const fadeOut = 1 - fo * fo * (3 - 2 * fo);
       const shownN = Math.floor(sl.shown);
       chars.forEach((c, ci) => {
         let alpha = fadeOut, ch = c, extra = 0;
