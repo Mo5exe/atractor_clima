@@ -1942,6 +1942,260 @@ class AnimationsEffect {
 }
 
 // ---------------------------------------------------------------------------
+// TEXTO FIJO — un texto para un evento ("Promo 2026") en la posición elegida.
+// Late suave, brilla, reacciona a la música y sus letras se apartan de la mano.
+// ---------------------------------------------------------------------------
+const TEXT_FONTS = {
+  sans: "800 {s}px 'Segoe UI', Roboto, Arial, sans-serif",
+  light: "300 {s}px 'Segoe UI', Roboto, Arial, sans-serif",
+  serif: "700 {s}px Georgia, 'Times New Roman', serif",
+  mono: "700 {s}px 'Courier New', Courier, monospace",
+  impact: "400 {s}px Impact, 'Arial Narrow', 'Arial Black', sans-serif"
+};
+class TextEffect {
+  constructor() { this.t = 0; this.offsets = new Map(); this.beat = 0; }
+  update(dt, t, w, h, p, env) {
+    this.t += dt;
+    const au = musicOf(env);
+    if (au && au.beat) this.beat = Math.max(this.beat, au.m);
+    this.beat *= Math.exp(-dt * 5);
+    this.env = env;
+    this.dt = dt;
+  }
+  anchor(w, h, p, env) {
+    const m = (p.margin / 100) * Math.min(w, h);
+    const t = (env && env.transform) || null;
+    const pos = p.position || "center";
+    // "Donde pongas el punto": la capa ya viene movida por el punto de origen.
+    if (pos === "free" || !t) return { x: w / 2, y: h / 2, ax: "center", ay: "middle" };
+    const ox = (t.originX / 100) * w - w / 2, oy = (t.originY / 100) * h - h / 2;
+    let x = w / 2, y = h / 2, ax = "center", ay = "middle";
+    if (pos.startsWith("top")) { y = m; ay = "top"; }
+    if (pos.startsWith("bottom")) { y = h - m; ay = "bottom"; }
+    if (pos === "top" || pos === "bottom") x = w / 2;
+    if (pos.endsWith("Left")) { x = m; ax = "left"; }
+    if (pos.endsWith("Right")) { x = w - m; ax = "right"; }
+    return { x: x - ox, y: y - oy, ax, ay };
+  }
+  draw(ctx, w, h, p, env) {
+    const text = String(p.text == null ? "" : p.text);
+    if (!text.trim()) return;
+    const lines = text.split("\n");
+    const au = musicOf(env);
+    const breathe = 1 + p.breath * Math.sin(this.t * 1.6) + (au ? 0.08 * au.bass * au.m + 0.12 * this.beat : 0);
+    const size = Math.max(4, p.size * breathe * Math.min(w, h) / 720);
+    const font = (TEXT_FONTS[p.font] || TEXT_FONTS.sans).replace("{s}", Math.round(size));
+    ctx.save();
+    ctx.font = font;
+    ctx.textBaseline = "middle";
+    const spacing = p.spacing * size;
+    const lineH = size * 1.15;
+    // Medir cada línea letra por letra.
+    const measured = lines.map((ln) => {
+      const chars = Array.from(ln);
+      const widths = chars.map((c) => ctx.measureText(c).width);
+      const total = widths.reduce((a, b) => a + b, 0) + spacing * Math.max(0, chars.length - 1);
+      return { chars, widths, total };
+    });
+    const blockH = lineH * lines.length;
+    const a = this.anchor(w, h, p, env);
+    let top = a.ay === "top" ? a.y : a.ay === "bottom" ? a.y - blockH : a.y - blockH / 2;
+    const col = climateRgb(p.color, env);
+    const col2 = hexToRgb(p.color2);
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.opacity));
+    ctx.lineJoin = "round";
+    const pushR = Math.max(60, (env && env.radius) || 120) * 1.2;
+    const k = Math.min(1, (this.dt || 0.016) * 8);
+    measured.forEach((m, li) => {
+      let x = a.ax === "left" ? a.x : a.ax === "right" ? a.x - m.total : a.x - m.total / 2;
+      const y = top + lineH * (li + 0.5);
+      m.chars.forEach((c, ci) => {
+        const cw = m.widths[ci];
+        const cx = x + cw / 2;
+        // Las letras se corren cuando se acerca una mano, y después vuelven.
+        const key = li + ":" + ci;
+        const off = this.offsets.get(key) || { x: 0, y: 0 };
+        let tx = 0, ty = 0;
+        if (p.push > 0 && env && env.hands && env.hands.length) {
+          for (const hd of env.hands) {
+            const dx = cx - hd.x, dy = y - hd.y, d = Math.hypot(dx, dy) || 1;
+            if (d < pushR) {
+              const f = (1 - d / pushR) * p.push * p.attract * size * 0.9;
+              tx += (dx / d) * f; ty += (dy / d) * f;
+            }
+          }
+        }
+        off.x += (tx - off.x) * k; off.y += (ty - off.y) * k;
+        this.offsets.set(key, off);
+        const px = cx + off.x, py = y + off.y;
+        ctx.textAlign = "center";
+        if (p.glow > 0) { ctx.shadowColor = rgbToCss(col2, 0.9); ctx.shadowBlur = p.glow * (1 + this.beat); }
+        if (p.outline > 0) {
+          ctx.lineWidth = p.outline * size / 100;
+          ctx.strokeStyle = rgbToCss(col2);
+          ctx.strokeText(c, px, py);
+        }
+        ctx.fillStyle = rgbToCss(col);
+        ctx.fillText(c, px, py);
+        ctx.shadowBlur = 0;
+        x += cw + spacing;
+      });
+    });
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// NOMBRES QUE APARECEN — 3 nombres o palabras fijas que se escriben en 3
+// lugares de la pantalla (tipeando, letra por letra con destellos, descifrándose
+// o suave), se quedan un rato, se van en destellos y vuelven a empezar.
+// ---------------------------------------------------------------------------
+const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+=?";
+class NamesEffect {
+  constructor() { this.slots = []; this.sparks = []; this.t = 0; this.turn = 0; this.wait = 0.3; this.beat = 0; }
+  places(layout, w, h) {
+    const P = {
+      row: [[0.2, 0.5], [0.5, 0.5], [0.8, 0.5]],
+      column: [[0.5, 0.22], [0.5, 0.5], [0.5, 0.78]],
+      diagonal: [[0.22, 0.25], [0.5, 0.5], [0.78, 0.75]],
+      triangle: [[0.5, 0.25], [0.25, 0.72], [0.75, 0.72]]
+    }[layout];
+    return P || null;
+  }
+  texts(p) { return [p.text1, p.text2, p.text3].map((x) => String(x == null ? "" : x).trim()); }
+  start(i, p, w, h) {
+    const texts = this.texts(p);
+    if (!texts[i]) return;
+    let pos = this.places(p.layout);
+    let x, y;
+    if (pos) { x = pos[i][0] * w; y = pos[i][1] * h; }
+    else { x = w * (0.18 + Math.random() * 0.64); y = h * (0.18 + Math.random() * 0.64); }
+    this.slots[i] = { text: texts[i], x, y, age: 0, phase: "in", shown: 0, out: 0 };
+  }
+  burst(x, y, n, p, spread) {
+    const c2 = hexToRgb(p.color2);
+    for (let k = 0; k < n && this.sparks.length < 1500; k++) {
+      const a = Math.random() * Math.PI * 2, v = 30 + Math.random() * 160;
+      this.sparks.push({ x: x + (Math.random() - 0.5) * spread, y: y + (Math.random() - 0.5) * spread * 0.4,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.5 + Math.random() * 0.9, max: 1.4, size: 1 + Math.random() * 3, c: c2 });
+    }
+  }
+  update(dt, t, w, h, p, env) {
+    this.t += dt;
+    const au = musicOf(env);
+    if (au && au.beat) this.beat = Math.max(this.beat, au.m);
+    this.beat *= Math.exp(-dt * 5);
+    const texts = this.texts(p);
+    const valid = [0, 1, 2].filter((i) => texts[i]);
+    // Si cambiaste el texto, se reescribe.
+    this.slots.forEach((sl, i) => { if (sl && sl.text !== texts[i]) this.slots[i] = null; });
+    // ¿Quién empieza ahora?
+    const active = this.slots.filter(Boolean).length;
+    if (!active) {
+      this.wait -= dt;
+      if (this.wait <= 0 && valid.length) {
+        if (p.together) valid.forEach((i) => this.start(i, p, w, h));
+        else { const i = valid[this.turn % valid.length]; this.turn++; this.start(i, p, w, h); }
+      }
+    }
+    const fontSize = Math.max(6, p.size * Math.min(w, h) / 720);
+    const charW = fontSize * 0.6;
+    this.slots.forEach((sl, i) => {
+      if (!sl) return;
+      sl.age += dt;
+      const n = Array.from(sl.text).length;
+      if (sl.phase === "in") {
+        const before = Math.floor(sl.shown);
+        sl.shown = Math.min(n, sl.shown + dt * p.speed * (p.style === "fade" ? 3 : 1));
+        const now = Math.floor(sl.shown);
+        // Destellos donde aparece cada letra.
+        if (now > before && p.sparkles > 0 && p.style !== "fade") {
+          const lx = sl.x - (n * charW) / 2 + now * charW;
+          this.burst(lx, sl.y, Math.max(1, Math.round(p.sparkles / 12)), p, fontSize * 0.5);
+        }
+        if (sl.shown >= n) { sl.phase = "hold"; sl.age = 0; if (p.sparkles > 0) this.burst(sl.x, sl.y, Math.round(p.sparkles / 3), p, n * charW); }
+      } else if (sl.phase === "hold") {
+        if (sl.age >= p.hold) { sl.phase = "out"; sl.age = 0; if (p.sparkles > 0) this.burst(sl.x, sl.y, p.sparkles, p, n * charW); }
+      } else {
+        sl.out = Math.min(1, sl.age / 0.6);
+        if (sl.out >= 1) { this.slots[i] = null; this.wait = p.gap; }
+      }
+    });
+    // Destellos: se mueven, frenan y se apagan; la mano los atrae.
+    for (const sp of this.sparks) {
+      sp.life -= dt;
+      const pull = pullToward(env, sp.x, sp.y);
+      if (pull) { sp.vx += pull.ux * pull.force * 400 * dt; sp.vy += pull.uy * pull.force * 400 * dt; }
+      sp.vx *= 1 - 2 * dt; sp.vy *= 1 - 2 * dt; sp.vy += 20 * dt;
+      sp.x += sp.vx * dt; sp.y += sp.vy * dt;
+    }
+    this.sparks = this.sparks.filter((sp) => sp.life > 0);
+    // Un destello suelto de vez en cuando sobre las palabras quietas.
+    this.slots.forEach((sl) => {
+      if (sl && sl.phase === "hold" && Math.random() < dt * (p.sparkles / 40 + this.beat * 4)) {
+        this.burst(sl.x + (Math.random() - 0.5) * Array.from(sl.text).length * charW, sl.y, 3, p, fontSize * 0.6);
+      }
+    });
+  }
+  draw(ctx, w, h, p, env) {
+    const fontSize = Math.max(6, p.size * Math.min(w, h) / 720);
+    const font = (TEXT_FONTS[p.font] || TEXT_FONTS.sans).replace("{s}", Math.round(fontSize * (1 + 0.08 * this.beat)));
+    const col = hexToRgb(p.color), col2 = hexToRgb(p.color2);
+    ctx.save();
+    ctx.font = font;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    this.slots.forEach((sl) => {
+      if (!sl) return;
+      const chars = Array.from(sl.text);
+      const widths = chars.map((c) => ctx.measureText(c).width);
+      const total = widths.reduce((a, b) => a + b, 0);
+      let x = sl.x - total / 2;
+      const fadeOut = 1 - (sl.out || 0);
+      const shownN = Math.floor(sl.shown);
+      chars.forEach((c, ci) => {
+        let alpha = fadeOut, ch = c, extra = 0;
+        if (sl.phase === "in") {
+          if (p.style === "fade") alpha *= Math.max(0, Math.min(1, sl.shown / chars.length));
+          else if (ci >= shownN) {
+            if (p.style === "scramble" && ci < shownN + 4 && c !== " ") { ch = SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]; alpha *= 0.5; }
+            else alpha = 0;
+          } else if (p.style === "sparkle" && ci === shownN - 1) extra = 1 - (sl.shown - shownN);
+        }
+        if (alpha > 0.01) {
+          ctx.globalAlpha = alpha;
+          ctx.shadowColor = rgbToCss(extra > 0 ? col2 : col, 0.9);
+          ctx.shadowBlur = p.glow * (1 + extra * 2 + this.beat);
+          ctx.fillStyle = rgbToCss(extra > 0 ? mixRgb(col, col2, extra) : col);
+          ctx.fillText(ch, x, sl.y);
+        }
+        x += widths[ci];
+      });
+      // Cursor de máquina de escribir.
+      if (p.style === "type" && sl.phase !== "out" && Math.floor(this.t * 2.2) % 2 === 0) {
+        const cx = sl.x - total / 2 + widths.slice(0, shownN).reduce((a, b) => a + b, 0) + 3;
+        ctx.globalAlpha = fadeOut;
+        ctx.shadowBlur = p.glow;
+        ctx.fillStyle = rgbToCss(col2);
+        ctx.fillRect(cx, sl.y - fontSize * 0.45, Math.max(2, fontSize * 0.07), fontSize * 0.9);
+      }
+    });
+    // Destellos en forma de estrellita.
+    ctx.globalCompositeOperation = "lighter";
+    ctx.shadowBlur = 0;
+    for (const sp of this.sparks) {
+      const a = Math.max(0, sp.life / sp.max);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = rgbToCss(sp.c);
+      const s2 = sp.size * (0.6 + a);
+      ctx.fillRect(sp.x - s2 * 2, sp.y - s2 * 0.25, s2 * 4, s2 * 0.5);
+      ctx.fillRect(sp.x - s2 * 0.25, sp.y - s2 * 2, s2 * 0.5, s2 * 4);
+    }
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Fábrica de efectos por tipo
 // ---------------------------------------------------------------------------
 const EffectFactories = {
@@ -1958,5 +2212,7 @@ const EffectFactories = {
   glitch: () => new GlitchEffect(),
   animations: () => new AnimationsEffect(),
   stripesV: () => new StripesEffect(true),
-  stripesH: () => new StripesEffect(false)
+  stripesH: () => new StripesEffect(false),
+  text: () => new TextEffect(),
+  names: () => new NamesEffect()
 };

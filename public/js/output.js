@@ -359,7 +359,8 @@
         weather: weatherNow,
         climate,
         tint: climateColorAmount * climate,
-        audio: musicFor(layer)
+        audio: musicFor(layer),
+        transform
       };
       try {
         inst.update(dt, t, w, h, layer.params, env);

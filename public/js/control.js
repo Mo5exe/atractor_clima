@@ -672,7 +672,7 @@
     wrap.appendChild(labelRow);
 
     const currentValue = layer.params[def.key];
-    const input = document.createElement(def.type === "select" ? "select" : "input");
+    const input = document.createElement(def.type === "select" ? "select" : def.type === "text" ? "textarea" : "input");
 
     if (def.type === "select") {
       (def.options || []).forEach((o) => {
@@ -704,6 +704,13 @@
       input.type = "color";
       input.value = currentValue;
       input.addEventListener("input", () => socket.emit("update-param", { id: layer.id, key: def.key, value: input.value }));
+    } else if (def.type === "text") {
+      input.rows = 2;
+      input.maxLength = 300;
+      input.className = "param-text";
+      input.value = currentValue == null ? "" : currentValue;
+      input.addEventListener("input", () => socket.emit("update-param", { id: layer.id, key: def.key, value: input.value }));
+      input.addEventListener("change", () => input.blur());
     } else if (def.type === "checkbox") {
       input.type = "checkbox";
       input.checked = !!currentValue;

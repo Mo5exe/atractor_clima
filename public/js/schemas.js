@@ -264,6 +264,75 @@
       { key: "color", label: "Color", type: "color", default: "#5cc8ff" },
       { key: "color2", label: "Segundo color", type: "color", default: "#ff3d8b" }
     ],
+    text: [
+      { key: "text", label: "Texto (Enter = otra línea)", type: "text", default: "Promo 2026" },
+      { key: "position", label: "Posición", type: "select", default: "center", options: [
+        { value: "center", label: "Centro" },
+        { value: "top", label: "Arriba" },
+        { value: "bottom", label: "Abajo" },
+        { value: "topLeft", label: "Arriba a la izquierda" },
+        { value: "topRight", label: "Arriba a la derecha" },
+        { value: "bottomLeft", label: "Abajo a la izquierda" },
+        { value: "bottomRight", label: "Abajo a la derecha" },
+        { value: "free", label: "Donde pongas el punto (arrastralo arriba)" }
+      ] },
+      { key: "margin", label: "Distancia al borde (%)", type: "range", min: 0, max: 25, step: 0.5, default: 6 },
+      { key: "size", label: "Tamaño", type: "range", min: 12, max: 400, step: 1, default: 110 },
+      { key: "font", label: "Letra", type: "select", default: "sans", options: [
+        { value: "sans", label: "Moderna (negrita)" },
+        { value: "light", label: "Moderna fina" },
+        { value: "serif", label: "Clásica (serif)" },
+        { value: "mono", label: "Máquina de escribir" },
+        { value: "impact", label: "Impacto (condensada)" }
+      ] },
+      { key: "spacing", label: "Espacio entre letras", type: "range", min: -0.1, max: 0.6, step: 0.01, default: 0.04 },
+      { key: "opacity", label: "Opacidad", type: "range", min: 0, max: 1, step: 0.01, default: 1 },
+      { key: "glow", label: "Brillo alrededor", type: "range", min: 0, max: 80, step: 1, default: 18 },
+      { key: "outline", label: "Borde", type: "range", min: 0, max: 12, step: 0.5, default: 0 },
+      { key: "breath", label: "Respiración (late suave)", type: "range", min: 0, max: 0.3, step: 0.01, default: 0.03 },
+      { key: "push", label: "Las letras se apartan de la mano", type: "range", min: 0, max: 1, step: 0.05, default: 0.5 },
+      ATTRACT,
+      CLIMATE,
+      MUSIC,
+      { key: "color", label: "Color", type: "color", default: "#ffffff" },
+      { key: "color2", label: "Color del brillo y del borde", type: "color", default: "#e52495" }
+    ],
+    names: [
+      { key: "text1", label: "Nombre o palabra 1", type: "text", default: "Ana" },
+      { key: "text2", label: "Nombre o palabra 2", type: "text", default: "Luz" },
+      { key: "text3", label: "Nombre o palabra 3", type: "text", default: "Río" },
+      { key: "layout", label: "Dónde aparecen (3 lugares)", type: "select", default: "row", options: [
+        { value: "row", label: "En fila: izquierda, centro, derecha" },
+        { value: "column", label: "En columna: arriba, centro, abajo" },
+        { value: "diagonal", label: "En diagonal" },
+        { value: "triangle", label: "En triángulo" },
+        { value: "random", label: "Lugares al azar (cambian cada vez)" }
+      ] },
+      { key: "together", label: "Aparecen las 3 a la vez (si no, de a una)", type: "checkbox", default: false },
+      { key: "style", label: "Cómo aparecen", type: "select", default: "type", options: [
+        { value: "type", label: "Tipeando, con cursor" },
+        { value: "sparkle", label: "Letra por letra, con destellos" },
+        { value: "scramble", label: "Se descifran (letras que cambian)" },
+        { value: "fade", label: "Aparecen suave" }
+      ] },
+      { key: "speed", label: "Velocidad de escritura (letras por segundo)", type: "range", min: 1, max: 40, step: 1, default: 10 },
+      { key: "hold", label: "Cuánto quedan quietas (s)", type: "range", min: 0.5, max: 20, step: 0.5, default: 3 },
+      { key: "gap", label: "Pausa entre una y otra (s)", type: "range", min: 0, max: 10, step: 0.25, default: 0.75 },
+      { key: "size", label: "Tamaño", type: "range", min: 12, max: 300, step: 1, default: 80 },
+      { key: "font", label: "Letra", type: "select", default: "sans", options: [
+        { value: "sans", label: "Moderna (negrita)" },
+        { value: "light", label: "Moderna fina" },
+        { value: "serif", label: "Clásica (serif)" },
+        { value: "mono", label: "Máquina de escribir" },
+        { value: "impact", label: "Impacto (condensada)" }
+      ] },
+      { key: "sparkles", label: "Destellos", type: "range", min: 0, max: 200, step: 5, default: 60 },
+      { key: "glow", label: "Brillo alrededor", type: "range", min: 0, max: 80, step: 1, default: 20 },
+      ATTRACT,
+      MUSIC,
+      { key: "color", label: "Color", type: "color", default: "#ffffff" },
+      { key: "color2", label: "Color de los destellos", type: "color", default: "#ffd23f" }
+    ],
     stripesH: [
       { key: "count", label: "Cantidad de rayas", type: "range", min: 1, max: 80, step: 1, default: 14 },
       { key: "minWidth", label: "Grosor mínimo", type: "range", min: 0.5, max: 200, step: 0.5, default: 2 },
@@ -301,7 +370,9 @@
     glitch: "Glitch",
     animations: "Animaciones",
     stripesV: "Rayas verticales",
-    stripesH: "Rayas horizontales"
+    stripesH: "Rayas horizontales",
+    text: "Texto fijo",
+    names: "Nombres que aparecen (3)"
   };
 
   // Ajustes globales de la escena (no pertenecen a una capa).

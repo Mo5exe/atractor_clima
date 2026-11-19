@@ -623,3 +623,7 @@ button:disabled {
 .qr-wrap { display: flex; gap: 12px; align-items: center; margin: 4px 0 8px; }
 .qr-img { width: 120px; height: 120px; background: #fff; border-radius: 6px; flex: none; }
 .qr-wrap a { color: var(--accent); word-break: break-all; }
+
+/* Texto fijo */
+.param-text { width: 100%; resize: vertical; background: var(--panel-alt); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 15px; }
+.param-text:focus { outline: none; border-color: var(--accent); }

@@ -450,7 +450,7 @@ io.on("connection", (socket) => {
     const { id, key, value } = payload || {};
     const layer = state.layers.find((l) => l.id === id);
     if (layer && Object.prototype.hasOwnProperty.call(layer.params, key)) {
-      layer.params[key] = value;
+      layer.params[key] = typeof value === "string" ? value.slice(0, 300) : value;
       broadcastState();
     }
   });
