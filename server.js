@@ -269,7 +269,10 @@ function loadBasePresets() {
       if (!p.id) p.id = randomUUID();
       if (!ids.has(p.id)) { presets.unshift(p); ids.add(p.id); }
     });
-    const first = base.find((p) => p && Array.isArray(p.layers));
+    // START_PRESET (en Render) elige con qué preset arranca; si no, el primero.
+    const want = String(process.env.START_PRESET || "").trim().toLowerCase();
+    const first = (want && base.find((p) => p && Array.isArray(p.layers) && String(p.name || "").trim().toLowerCase() === want)) ||
+      base.find((p) => p && Array.isArray(p.layers));
     if (first && !state.layers.length) {
       state.layers = first.layers.map(normalizeLayer).filter(Boolean);
       state.settings = Object.assign({}, DEFAULT_SETTINGS, first.settings || {});

@@ -12,6 +12,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      - key: START_PRESET # con qué preset arranca la salida
+        value: Demo2
       - key: PANEL_PASSWORD # contraseña para entrar al panel (la salida queda pública)
         sync: false
     # Para que las imágenes, animaciones y presets NO se borren al reiniciar hace
