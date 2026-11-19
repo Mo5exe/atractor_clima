@@ -153,7 +153,8 @@ En las fuentes de arte los nombres de artistas, lugares y obras quedan juntos
   cuando alguien toca cerca. Podés poner varias capas de texto (por ejemplo el nombre
   del evento arriba y la fecha abajo).
 - **Nombres que aparecen (3)**: tres nombres o palabras fijas que aparecen siempre, en
-  3 lugares de la pantalla (en fila, en columna, en diagonal, en triángulo o al azar),
+  3 lugares de la pantalla (izquierda, centro y derecha cada uno a la altura que elijas,
+  en fila, en columna, en diagonal, en triángulo o al azar),
   las 3 juntas o de a una. Aparecen **tipeando con cursor**, **letra por letra con
   destellos**, **descifrándose** o **suave**; se quedan un rato y se van en destellos.
   Los destellos siguen a la mano.

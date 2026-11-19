@@ -2053,7 +2053,8 @@ class TextEffect {
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+=?";
 class NamesEffect {
   constructor() { this.slots = []; this.sparks = []; this.t = 0; this.turn = 0; this.wait = 0.3; this.beat = 0; }
-  places(layout, w, h) {
+  places(layout, p) {
+    if (layout === "heights") return [[0.2, p.y1 / 100], [0.5, p.y2 / 100], [0.8, p.y3 / 100]];
     const P = {
       row: [[0.2, 0.5], [0.5, 0.5], [0.8, 0.5]],
       column: [[0.5, 0.22], [0.5, 0.5], [0.5, 0.78]],
@@ -2066,7 +2067,7 @@ class NamesEffect {
   start(i, p, w, h) {
     const texts = this.texts(p);
     if (!texts[i]) return;
-    let pos = this.places(p.layout);
+    let pos = this.places(p.layout, p);
     let x, y;
     if (pos) { x = pos[i][0] * w; y = pos[i][1] * h; }
     else { x = w * (0.18 + Math.random() * 0.64); y = h * (0.18 + Math.random() * 0.64); }

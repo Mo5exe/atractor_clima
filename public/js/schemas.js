@@ -301,13 +301,17 @@
       { key: "text1", label: "Nombre o palabra 1", type: "text", default: "Ana" },
       { key: "text2", label: "Nombre o palabra 2", type: "text", default: "Luz" },
       { key: "text3", label: "Nombre o palabra 3", type: "text", default: "Río" },
-      { key: "layout", label: "Dónde aparecen (3 lugares)", type: "select", default: "row", options: [
-        { value: "row", label: "En fila: izquierda, centro, derecha" },
+      { key: "layout", label: "Dónde aparecen (3 lugares)", type: "select", default: "heights", options: [
+        { value: "heights", label: "Izquierda, centro y derecha, cada uno a su altura" },
+        { value: "row", label: "En fila, a la misma altura" },
         { value: "column", label: "En columna: arriba, centro, abajo" },
         { value: "diagonal", label: "En diagonal" },
         { value: "triangle", label: "En triángulo" },
         { value: "random", label: "Lugares al azar (cambian cada vez)" }
       ] },
+      { key: "y1", label: "Altura del nombre 1, izquierda (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 28 },
+      { key: "y2", label: "Altura del nombre 2, centro (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 74 },
+      { key: "y3", label: "Altura del nombre 3, derecha (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 50 },
       { key: "together", label: "Aparecen las 3 a la vez (si no, de a una)", type: "checkbox", default: false },
       { key: "style", label: "Cómo aparecen", type: "select", default: "type", options: [
         { value: "type", label: "Tipeando, con cursor" },
