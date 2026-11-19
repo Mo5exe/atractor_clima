@@ -309,9 +309,10 @@
         { value: "triangle", label: "En triángulo" },
         { value: "random", label: "Lugares al azar (cambian cada vez)" }
       ] },
-      { key: "y1", label: "Altura del nombre 1, izquierda (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 28 },
+      { key: "y1", label: "Altura del nombre 1, izquierda (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 42 },
       { key: "y2", label: "Altura del nombre 2, centro (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 74 },
       { key: "y3", label: "Altura del nombre 3, derecha (% desde arriba)", type: "range", min: 5, max: 95, step: 1, default: 50 },
+      { key: "tilt", label: "Inclinación hacia arriba, al azar hasta (°)", type: "range", min: 0, max: 45, step: 1, default: 45 },
       { key: "together", label: "Aparecen las 3 a la vez (si no, de a una)", type: "checkbox", default: false },
       { key: "style", label: "Cómo aparecen", type: "select", default: "type", options: [
         { value: "type", label: "Tipeando, con cursor" },

@@ -2071,7 +2071,9 @@ class NamesEffect {
     let x, y;
     if (pos) { x = pos[i][0] * w; y = pos[i][1] * h; }
     else { x = w * (0.18 + Math.random() * 0.64); y = h * (0.18 + Math.random() * 0.64); }
-    this.slots[i] = { text: texts[i], x, y, age: 0, phase: "in", shown: 0, out: 0 };
+    // Cada vez que aparece se inclina hacia arriba un ángulo al azar.
+    const ang = -Math.random() * (p.tilt || 0) * Math.PI / 180;
+    this.slots[i] = { text: texts[i], x, y, ang, age: 0, phase: "in", shown: 0, out: 0 };
   }
   burst(x, y, n, p, spread) {
     const c2 = hexToRgb(p.color2);
@@ -2111,8 +2113,8 @@ class NamesEffect {
         const now = Math.floor(sl.shown);
         // Destellos donde aparece cada letra.
         if (now > before && p.sparkles > 0 && p.style !== "fade") {
-          const lx = sl.x - (n * charW) / 2 + now * charW;
-          this.burst(lx, sl.y, Math.max(1, Math.round(p.sparkles / 12)), p, fontSize * 0.5);
+          const d = -(n * charW) / 2 + now * charW;
+          this.burst(sl.x + Math.cos(sl.ang) * d, sl.y + Math.sin(sl.ang) * d, Math.max(1, Math.round(p.sparkles / 12)), p, fontSize * 0.5);
         }
         if (sl.shown >= n) { sl.phase = "hold"; sl.age = 0; if (p.sparkles > 0) this.burst(sl.x, sl.y, Math.round(p.sparkles / 3), p, n * charW); }
       } else if (sl.phase === "hold") {
@@ -2134,7 +2136,8 @@ class NamesEffect {
     // Un destello suelto de vez en cuando sobre las palabras quietas.
     this.slots.forEach((sl) => {
       if (sl && sl.phase === "hold" && Math.random() < dt * (p.sparkles / 40 + this.beat * 4)) {
-        this.burst(sl.x + (Math.random() - 0.5) * Array.from(sl.text).length * charW, sl.y, 3, p, fontSize * 0.6);
+        const d = (Math.random() - 0.5) * Array.from(sl.text).length * charW;
+        this.burst(sl.x + Math.cos(sl.ang) * d, sl.y + Math.sin(sl.ang) * d, 3, p, fontSize * 0.6);
       }
     });
   }
@@ -2151,6 +2154,10 @@ class NamesEffect {
       const chars = Array.from(sl.text);
       const widths = chars.map((c) => ctx.measureText(c).width);
       const total = widths.reduce((a, b) => a + b, 0);
+      ctx.save();
+      ctx.translate(sl.x, sl.y);
+      ctx.rotate(sl.ang || 0);
+      ctx.translate(-sl.x, -sl.y);
       let x = sl.x - total / 2;
       const fadeOut = 1 - (sl.out || 0);
       const shownN = Math.floor(sl.shown);
@@ -2180,6 +2187,7 @@ class NamesEffect {
         ctx.fillStyle = rgbToCss(col2);
         ctx.fillRect(cx, sl.y - fontSize * 0.45, Math.max(2, fontSize * 0.07), fontSize * 0.9);
       }
+      ctx.restore();
     });
     // Destellos en forma de estrellita.
     ctx.globalCompositeOperation = "lighter";
