@@ -157,7 +157,8 @@ En las fuentes de arte los nombres de artistas, lugares y obras quedan juntos
   en fila, en columna, en diagonal, en triángulo o al azar),
   las 3 juntas o de a una. Aparecen **tipeando con cursor**, **letra por letra con
   destellos**, **descifrándose** o **suave**; se quedan un rato y se van en destellos.
-  Los destellos siguen a la mano.
+  Los destellos siguen a la mano. Nunca se enciman con un "Texto fijo": si caen encima
+  o muy cerca, se corren solos hacia arriba o hacia abajo.
 
 ## Multijugador (con el celular)
 

@@ -1959,6 +1959,18 @@ const TEXT_FONTS = {
   mono: "700 {s}px 'Courier New', Courier, monospace",
   impact: "400 {s}px Impact, 'Arial Narrow', 'Arial Black', sans-serif"
 };
+// Dónde está cada texto fijo en pantalla (para que los nombres no se le encimen).
+const TEXT_BOXES = new Map();
+function layerOffset(env, w, h) {
+  const t = env && env.transform;
+  return t ? { x: (t.originX / 100) * w - w / 2, y: (t.originY / 100) * h - h / 2 } : { x: 0, y: 0 };
+}
+function activeTextBoxes() {
+  const now = performance.now(), out = [];
+  for (const [k, b] of TEXT_BOXES) { if (now - b.at > 600) TEXT_BOXES.delete(k); else out.push(b); }
+  return out;
+}
+
 class TextEffect {
   constructor() { this.t = 0; this.offsets = new Map(); this.beat = 0; }
   update(dt, t, w, h, p, env) {
@@ -2008,6 +2020,12 @@ class TextEffect {
     const blockH = lineH * lines.length;
     const a = this.anchor(w, h, p, env);
     let top = a.ay === "top" ? a.y : a.ay === "bottom" ? a.y - blockH : a.y - blockH / 2;
+    {
+      const maxW = Math.max(...measured.map((m) => m.total), 0);
+      const left = a.ax === "left" ? a.x : a.ax === "right" ? a.x - maxW : a.x - maxW / 2;
+      const o = layerOffset(env, w, h);
+      TEXT_BOXES.set(this, { x0: left + o.x, y0: top + o.y, x1: left + maxW + o.x, y1: top + blockH + o.y, size, at: performance.now() });
+    }
     const col = climateRgb(p.color, env);
     const col2 = hexToRgb(p.color2);
     ctx.globalAlpha = Math.max(0, Math.min(1, p.opacity));
@@ -2091,6 +2109,38 @@ class NamesEffect {
     const ang = -Math.random() * (p.tilt || 0) * Math.PI / 180;
     this.slots[i] = { text: texts[i], x, y, ang, age: 0, phase: "in", shown: 0, out: 0 };
   }
+  // Que los nombres no se encimen ni queden pegados a un texto fijo: si lo
+  // tocan, se corren hacia arriba o hacia abajo (lo que quede más cerca y entre).
+  avoidText(dt, w, h, fontSize, env) {
+    const boxes = activeTextBoxes();
+    const o = layerOffset(env, w, h);
+    this.slots.forEach((sl) => {
+      if (!sl) return;
+      if (sl.baseY == null) sl.baseY = sl.y;
+      const W = sl.wpx || Array.from(sl.text).length * fontSize * 0.62, H = fontSize * 1.1;
+      const c = Math.abs(Math.cos(sl.ang || 0)), sn = Math.abs(Math.sin(sl.ang || 0));
+      const hw = (W / 2) * c + (H / 2) * sn, hh = (W / 2) * sn + (H / 2) * c;
+      const x = Math.max(hw + 8, Math.min(w - hw - 8, sl.x));
+      let target = sl.baseY;
+      for (let pass = 0; pass < 3; pass++) {
+        let moved = false;
+        for (const b of boxes) {
+          const gap = Math.max(fontSize * 0.6, b.size * 0.35);
+          const sx = x + o.x, sy = target + o.y;
+          if (sx + hw > b.x0 - gap && sx - hw < b.x1 + gap && sy + hh > b.y0 - gap && sy - hh < b.y1 + gap) {
+            const up = b.y0 - gap - hh - o.y, down = b.y1 + gap + hh - o.y;
+            const upOk = up - hh >= 0, downOk = down + hh <= h;
+            target = (upOk && (!downOk || Math.abs(up - target) < Math.abs(down - target))) ? up : (downOk ? down : up);
+            moved = true;
+          }
+        }
+        if (!moved) break;
+      }
+      sl.x = x;
+      if (sl.placed) sl.y += (target - sl.y) * Math.min(1, dt * 6);
+      else { sl.y = target; sl.placed = true; }
+    });
+  }
   burst(x, y, n, p, spread) {
     const c2 = hexToRgb(p.color2);
     for (let k = 0; k < n && this.sparks.length < 1500; k++) {
@@ -2119,6 +2169,7 @@ class NamesEffect {
     }
     const fontSize = Math.max(6, p.size * Math.min(w, h) / 720);
     const charW = fontSize * 0.6;
+    this.avoidText(dt, w, h, fontSize, env);
     this.slots.forEach((sl, i) => {
       if (!sl) return;
       sl.age += dt;
@@ -2172,6 +2223,7 @@ class NamesEffect {
       const chars = Array.from(sl.text);
       const widths = chars.map((c) => ctx.measureText(c).width);
       const total = widths.reduce((a, b) => a + b, 0);
+      sl.wpx = total;
       ctx.save();
       ctx.translate(sl.x, sl.y);
       ctx.rotate(sl.ang || 0);
