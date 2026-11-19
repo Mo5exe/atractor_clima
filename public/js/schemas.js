@@ -294,7 +294,13 @@
       ATTRACT,
       CLIMATE,
       MUSIC,
+      { key: "colorMode", label: "Colores del texto", type: "select", default: "single", options: [
+        { value: "single", label: "Un color" },
+        { value: "gradient", label: "Degradé entre dos colores" },
+        { value: "rainbow", label: "Arcoíris que va cambiando" }
+      ] },
       { key: "color", label: "Color", type: "color", default: "#ffffff" },
+      { key: "colorB", label: "Segundo color del degradé", type: "color", default: "#5cc8ff" },
       { key: "color2", label: "Color del brillo y del borde", type: "color", default: "#e52495" }
     ],
     names: [
@@ -335,7 +341,14 @@
       { key: "glow", label: "Brillo alrededor", type: "range", min: 0, max: 80, step: 1, default: 20 },
       ATTRACT,
       MUSIC,
-      { key: "color", label: "Color", type: "color", default: "#ffffff" },
+      { key: "colorMode", label: "Colores de los nombres", type: "select", default: "single", options: [
+        { value: "single", label: "Un color para todos" },
+        { value: "each", label: "Cada nombre con su color" },
+        { value: "rainbow", label: "Arcoíris que va cambiando" }
+      ] },
+      { key: "color", label: "Color (o color del nombre 1)", type: "color", default: "#ffffff" },
+      { key: "colorB", label: "Color del nombre 2", type: "color", default: "#5cc8ff" },
+      { key: "colorC", label: "Color del nombre 3", type: "color", default: "#ff5c8a" },
       { key: "color2", label: "Color de los destellos", type: "color", default: "#ffd23f" }
     ],
     stripesH: [

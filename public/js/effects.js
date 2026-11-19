@@ -24,6 +24,13 @@ function hexToRgb(hex) {
   const bigint = parseInt(full, 16) || 0;
   return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
 }
+// Color del arcoíris (h en grados).
+function hueRgb(h, l) {
+  const k = (n) => (n + h / 30) % 12;
+  const a = 1 * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return { r: f(0), g: f(8), b: f(4) };
+}
 function rgbToCss(c, a) {
   return a == null ? "rgb(" + c.r + "," + c.g + "," + c.b + ")" : "rgba(" + c.r + "," + c.g + "," + c.b + "," + a + ")";
 }
@@ -2035,7 +2042,10 @@ class TextEffect {
           ctx.strokeStyle = rgbToCss(col2);
           ctx.strokeText(c, px, py);
         }
-        ctx.fillStyle = rgbToCss(col);
+        let cc = col;
+        if (p.colorMode === "gradient") cc = mixRgb(col, hexToRgb(p.colorB || "#5cc8ff"), m.chars.length > 1 ? ci / (m.chars.length - 1) : 0);
+        else if (p.colorMode === "rainbow") cc = hueRgb((this.t * 60 + ci * 25 + li * 40) % 360, 0.62);
+        ctx.fillStyle = rgbToCss(cc);
         ctx.fillText(c, px, py);
         ctx.shadowBlur = 0;
         x += cw + spacing;
@@ -2144,13 +2154,15 @@ class NamesEffect {
   draw(ctx, w, h, p, env) {
     const fontSize = Math.max(6, p.size * Math.min(w, h) / 720);
     const font = (TEXT_FONTS[p.font] || TEXT_FONTS.sans).replace("{s}", Math.round(fontSize * (1 + 0.08 * this.beat)));
-    const col = hexToRgb(p.color), col2 = hexToRgb(p.color2);
+    const base = [p.color, p.colorB || p.color, p.colorC || p.color].map(hexToRgb);
+    const col2 = hexToRgb(p.color2);
     ctx.save();
     ctx.font = font;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    this.slots.forEach((sl) => {
+    this.slots.forEach((sl, si) => {
       if (!sl) return;
+      const col0 = p.colorMode === "each" ? base[si] : base[0];
       const chars = Array.from(sl.text);
       const widths = chars.map((c) => ctx.measureText(c).width);
       const total = widths.reduce((a, b) => a + b, 0);
@@ -2170,6 +2182,7 @@ class NamesEffect {
             else alpha = 0;
           } else if (p.style === "sparkle" && ci === shownN - 1) extra = 1 - (sl.shown - shownN);
         }
+        const col = p.colorMode === "rainbow" ? hueRgb((this.t * 60 + ci * 30 + si * 120) % 360, 0.62) : col0;
         if (alpha > 0.01) {
           ctx.globalAlpha = alpha;
           ctx.shadowColor = rgbToCss(extra > 0 ? col2 : col, 0.9);
