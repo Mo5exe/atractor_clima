@@ -254,6 +254,33 @@ function presetSummaries() {
 
 loadPresets();
 
+// Presets de fábrica: los que están en el repo (presets-iniciales.json) se suman
+// siempre, aunque el servidor se reinicie (por ejemplo en Render gratis). Al
+// arrancar, la salida empieza con el primero, así nunca queda en negro.
+const BASE_PRESETS_FILE = path.join(__dirname, "presets-iniciales.json");
+function loadBasePresets() {
+  try {
+    if (!fs.existsSync(BASE_PRESETS_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(BASE_PRESETS_FILE, "utf-8"));
+    const base = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.presets) ? raw.presets : []);
+    const ids = new Set(presets.map((p) => p.id));
+    base.slice().reverse().forEach((p) => {
+      if (!p || !Array.isArray(p.layers)) return;
+      if (!p.id) p.id = randomUUID();
+      if (!ids.has(p.id)) { presets.unshift(p); ids.add(p.id); }
+    });
+    const first = base.find((p) => p && Array.isArray(p.layers));
+    if (first && !state.layers.length) {
+      state.layers = first.layers.map(normalizeLayer).filter(Boolean);
+      state.settings = Object.assign({}, DEFAULT_SETTINGS, first.settings || {});
+      console.log("[presets] La salida arranca con: " + (first.name || "preset 1"));
+    }
+  } catch (err) {
+    console.error("No se pudieron leer los presets iniciales:", err.message);
+  }
+}
+loadBasePresets();
+
 // Descargar / cargar presets (para guardarlos en tu compu, por ejemplo cuando
 // el servidor está en Render y los archivos no son permanentes).
 app.get("/api/presets", auth.requireAuth, (req, res) => {
